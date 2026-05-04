@@ -12,7 +12,72 @@ require_once "../Config/database.php";
 require_once __DIR__ . "/../Class/checkups.php";
 require_once __DIR__ . "/../Class/medications.php";
 require_once __DIR__ . "/../Class/prescribed_medication.php";
+
 $db = (new Database())->connect();
+$checkupObj = new Checkup($db);
+$medObj     = new Medication($db);
+$presObj    = new PrescribedMedication($db);
+
+/* ================= SAVE ALL (MEDICATION AND PRESCRIPTION) ================= */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
+    try {
+        $db->beginTransaction();
+
+        $patient_id = (int)$_POST['patient_id'];
+
+        $existingCheckup = $checkupObj->exists(
+            $patient_id,
+            $_POST['checkup_date'],
+            $_POST['doc_id'] ?? null,
+            $_POST['diagnosis'] ?? null
+        );
+
+        if ($existingCheckup) {
+            throw new Exception("Duplicate checkup detected for this patient on the same date with the same doctor and diagnosis.");
+        }
+
+        $checkup_id = $checkupObj->add(
+            $patient_id,
+            $_POST['checkup_date'],
+            $_POST['doc_id'] ?? null,
+            $_POST['chief_complaint'] ?? null,
+            $_POST['history_present_illness'] ?? null,
+            $_POST['diagnosis'] ?? null,
+            $_POST['blood_pressure'] ?? null,
+            $_POST['respiratory_rate'] ?? null,
+            $_POST['weight'] ?? null,
+            $_POST['heart_rate'] ?? null,
+            $_POST['temperature'] ?? null,
+            $_POST['doc_fullname'] ?? null
+        );
+
+        if (!empty($_POST['generic_name'])) {
+            foreach ($_POST['generic_name'] as $i => $generic) {
+                if (trim($generic) === '') continue;
+
+                $medObj->add($generic, $_POST['brand_name'][$i] ?? null);
+                $med_id = $db->lastInsertId();
+
+                $presObj->add(
+                    $checkup_id,
+                    $med_id,
+                    $_POST['dose'][$i] ?? null,
+                    $_POST['amount'][$i] ?? null,
+                    $_POST['frequency'][$i] ?? null,
+                    $_POST['duration'][$i] ?? null
+                );
+            }
+        }
+
+        $db->commit();
+        header("Location: doctor_medical_records_management.php?patient_id={$patient_id}&success=1");
+        exit();
+
+    } catch (Exception $e) {
+        $db->rollBack();
+        $error = $e->getMessage();
+    }
+}
 
 /* ================= SEARCH PATIENT ================= */
 $search = $_GET['search'] ?? '';
@@ -108,6 +173,21 @@ if (isset($_GET['patient_id'])) {
 .sb-sidenav .nav-link.active { background-color:#062e6bff !important; color:#fff !important; font-weight:600; }
 </style>
 </head>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function addMedication() {
+    document.getElementById('medications').insertAdjacentHTML('beforeend', `
+    <div class="row g-2 mb-2">
+        <div class="col"><input name="generic_name[]" class="form-control" placeholder="Generic"></div>
+        <div class="col"><input name="brand_name[]" class="form-control" placeholder="Brand"></div>
+        <div class="col"><input name="dose[]" class="form-control" placeholder="Dose"></div>
+        <div class="col"><input name="amount[]" class="form-control" placeholder="Amount"></div>
+        <div class="col"><input name="frequency[]" class="form-control" placeholder="Frequency"></div>
+        <div class="col"><input name="duration[]" class="form-control" placeholder="Duration"></div>
+    </div>
+    `);
+}
+</script>
 
 <body class="sb-nav-fixed">
 <?php include "../Includes/header.html"; ?>
@@ -168,11 +248,99 @@ if (isset($_GET['patient_id'])) {
 </ul>
 </nav>
 
+
 <?php else: ?>
-<!-- ================= PATIENT DETAILS ================= -->
-<a href="doctor_medical_records_management.php" class="btn btn-secondary mb-3">
-<i class="fa fa-arrow-left"></i> Back
-</a>
+<div class="d-flex justify-content-between mb-3">
+    <a href="doctor_medical_records_management.php" class="btn btn-secondary">
+        <i class="fa fa-arrow-left"></i> Back
+    </a>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newRecordModal">
+        <i class="fa-solid fa-plus me-1"></i> Add New Record
+    </button>
+</div>
+
+<!-- ================= NEW RECORD MODAL ================= -->
+<div class="modal fade" id="newRecordModal" tabindex="-1" aria-labelledby="newRecordModalLabel" aria-hidden="true">
+<div class="modal-dialog modal-xl modal-dialog-scrollable">
+<div class="modal-content">
+
+<div class="modal-header" style="background:#062e6b;">
+    <h5 class="modal-title text-white" id="newRecordModalLabel">
+        <i class="fa-solid fa-file-medical me-2"></i> Add New Record
+    </h5>
+    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+</div>
+
+<div class="modal-body">
+<form method="POST" id="newRecordForm">
+<input type="hidden" name="patient_id" value="<?= $patient['patient_id'] ?>">
+
+<!-- Patient Info (read-only) -->
+<div class="card mb-4 shadow-sm">
+<div class="section-header"><i class="fa-solid fa-user me-2"></i> Patient Information</div>
+<div class="card-body row g-3">
+    <div class="col-md-6"><label class="form-label text-muted small">Full Name</label><input class="form-control" value="<?= htmlspecialchars($patient['full_name']) ?>" readonly></div>
+    <div class="col-md-3"><label class="form-label text-muted small">Birthday</label><input class="form-control" value="<?= htmlspecialchars($patient['birthday']) ?>" readonly></div>
+    <div class="col-md-3"><label class="form-label text-muted small">Age</label><input class="form-control" value="<?= htmlspecialchars($patient['age']) ?>" readonly></div>
+    <div class="col-md-3"><label class="form-label text-muted small">Sex</label><input class="form-control" value="<?= htmlspecialchars($patient['sex']) ?>" readonly></div>
+    <div class="col-md-3"><label class="form-label text-muted small">Civil Status</label><input class="form-control" value="<?= htmlspecialchars($patient['civil_status']) ?>" readonly></div>
+    <div class="col-md-3"><label class="form-label text-muted small">Contact Number</label><input class="form-control" value="<?= htmlspecialchars($patient['contact_number']) ?>" readonly></div>
+    <div class="col-md-3"><label class="form-label text-muted small">Occupation</label><input class="form-control" value="<?= htmlspecialchars($patient['occupation']) ?>" readonly></div>
+    <div class="col-md-6"><label class="form-label text-muted small">Contact Person</label><input class="form-control" value="<?= htmlspecialchars($patient['contact_person']) ?>" readonly></div>
+    <div class="col-md-3"><label class="form-label text-muted small">Contact Person Age</label><input class="form-control" value="<?= htmlspecialchars($patient['contact_person_age']) ?>" readonly></div>
+    <div class="col-md-3"><label class="form-label text-muted small">Religion</label><input class="form-control" value="<?= htmlspecialchars($patient['religion']) ?>" readonly></div>
+    <div class="col-12"><label class="form-label text-muted small">Address</label><textarea class="form-control" readonly><?= htmlspecialchars($patient['address']) ?></textarea></div>
+</div>
+</div>
+
+<!-- Checkup -->
+<div class="card mb-4 shadow-sm">
+<div class="section-header"><i class="fa-solid fa-stethoscope me-2"></i> Checkup</div>
+<div class="card-body">
+    <div class="row g-3">
+        <div class="col-md-4"><label class="form-label text-muted small">Checkup Date</label><input type="date" name="checkup_date" class="form-control" required></div>
+        <div class="col-md-8"><label class="form-label text-muted small">Diagnosis</label><input name="diagnosis" class="form-control" placeholder="Diagnosis"></div>
+    </div>
+    <div class="mt-3"><label class="form-label text-muted small">Chief Complaint</label><textarea name="chief_complaint" class="form-control" placeholder="Chief Complaint"></textarea></div>
+    <div class="mt-3"><label class="form-label text-muted small">History of Present Illness</label><textarea name="history_present_illness" class="form-control" placeholder="History of Present Illness"></textarea></div>
+    <div class="row g-2 mt-3">
+        <div class="col"><label class="form-label text-muted small">BP</label><input name="blood_pressure" class="form-control" placeholder="BP"></div>
+        <div class="col"><label class="form-label text-muted small">RR</label><input name="respiratory_rate" class="form-control" placeholder="RR"></div>
+        <div class="col"><label class="form-label text-muted small">WT</label><input name="weight" class="form-control" placeholder="WT"></div>
+        <div class="col"><label class="form-label text-muted small">HR</label><input name="heart_rate" class="form-control" placeholder="HR"></div>
+        <div class="col"><label class="form-label text-muted small">TEMP</label><input name="temperature" class="form-control" placeholder="TEMP"></div>
+    </div>
+    <div class="row g-3 mt-3">
+        <div class="col-md-6"><label class="form-label text-muted small">Doctor ID</label><input name="doc_id" class="form-control" placeholder="Doctor ID" required></div>
+        <div class="col-md-6"><label class="form-label text-muted small">Doctor Full Name</label><input name="doc_fullname" class="form-control" placeholder="Doctor Full Name" required></div>
+    </div>
+</div>
+</div>
+
+<!-- Medications -->
+<div class="card mb-2 shadow-sm">
+<div class="section-header"><i class="fa-solid fa-pills me-2"></i> Medications</div>
+<div class="card-body">
+    <div id="medications"></div>
+    <button type="button" class="btn btn-outline-secondary mt-2" onclick="addMedication()">
+        <i class="fa-solid fa-plus"></i> Add Medication
+    </button>
+</div>
+</div>
+
+</form>
+</div>
+
+<div class="modal-footer">
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+    <button type="submit" form="newRecordForm" name="save_all" class="btn btn-primary">
+        <i class="fa-solid fa-floppy-disk me-1"></i> Save Record
+    </button>
+</div>
+
+</div>
+</div>
+</div>
 
 <div class="card shadow mb-4">
 <div class="section-header">
@@ -202,7 +370,6 @@ if (isset($_GET['patient_id'])) {
 </div>
 </div>
 </div>
-
 
 <!-- ================= CHECKUP DATE FILTER ================= -->
 <form class="row g-2 mb-4">
