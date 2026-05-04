@@ -49,7 +49,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           AND total_amount = ?
           AND billed_at >= CURDATE()
     ");
-    $stmt->execute([$patient_id, $_POST['doc_id'], $_POST['consultation_fee'], $_POST['medication_fee'], $total]);
+    $stmt->execute([
+        $patient_id, $_POST['doc_id'], $_POST['consultation_fee'], $_POST['medication_fee'], $total]);
     if ($stmt->fetchColumn() > 0) {
         die("Duplicate billing record detected for today.");
     }
@@ -77,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute([
         $patient_id,
         $_POST['doc_id'],
-        $checkup_id,
+        $checkup_id ?: null,
         $_POST['consultation_fee'],
         $_POST['medication_fee'],
         $total,
