@@ -198,6 +198,9 @@ $medications = $db->query("
 </div>
 </div>
 
+<!-- AI prediction -->
+<?php require_once "../Public/ai_prediction.php"; ?>
+
 <!-- MEDICATION -->
 <div class="card shadow mb-4">
 <div class="card-body">
