@@ -9,14 +9,8 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'staff') {
 
 /* ================= DATABASE ================= */
 require_once "../Config/database.php";
-require_once __DIR__ . "/../Class/checkups.php";
-require_once __DIR__ . "/../Class/medications.php";
-require_once __DIR__ . "/../Class/prescribed_medication.php";
 
 $db = (new Database())->connect();
-$checkupObj = new Checkup($db);
-$medObj     = new Medication($db);
-$presObj    = new PrescribedMedication($db);
 
 /* ================= SAVE ALL (TRANSACTION) ================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
@@ -54,53 +48,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
             ]);
 
             $patient_id = $db->lastInsertId();
-        }
-
-        // ================= ADD CHECKUP =================
-        // Use the exists() method in Checkup class to prevent duplicates
-        $existingCheckup = $checkupObj->exists(
-            $patient_id,
-            $_POST['checkup_date'],
-            $_POST['doc_id'] ?? null,
-            $_POST['diagnosis'] ?? null
-        );
-
-        if ($existingCheckup) {
-            throw new Exception("Duplicate checkup detected for this patient on the same date with the same doctor and diagnosis.");
-        }
-
-        $checkup_id = $checkupObj->add(
-            $patient_id,
-            $_POST['checkup_date'],
-            $_POST['doc_id'] ?? null,
-            $_POST['chief_complaint'] ?? null,
-            $_POST['history_present_illness'] ?? null,
-            $_POST['diagnosis'] ?? null,
-            $_POST['blood_pressure'] ?? null,
-            $_POST['respiratory_rate'] ?? null,
-            $_POST['weight'] ?? null,
-            $_POST['heart_rate'] ?? null,
-            $_POST['temperature'] ?? null,
-            $_POST['doc_fullname'] ?? null
-        );
-
-        // ================= ADD MEDICATIONS =================
-        if (!empty($_POST['generic_name'])) {
-            foreach ($_POST['generic_name'] as $i => $generic) {
-                if (trim($generic) === '') continue;
-
-                $medObj->add($generic, $_POST['brand_name'][$i] ?? null);
-                $med_id = $db->lastInsertId();
-
-                $presObj->add(
-                    $checkup_id,
-                    $med_id,
-                    $_POST['dose'][$i] ?? null,
-                    $_POST['amount'][$i] ?? null,
-                    $_POST['frequency'][$i] ?? null,
-                    $_POST['duration'][$i] ?? null
-                );
-            }
         }
 
         $db->commit();
@@ -200,56 +147,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
 </div>
 </div>
 
-<!-- ================= CHECKUP ================= -->
-<div class="card section-card mb-4 shadow-sm">
-<div class="section-header">
-    <i class="fa-solid fa-stethoscope me-2"></i> Checkup
-</div>
-<div class="card-body">
-
-<div class="row g-3">
-<div class="col-md-4"><input type="date" name="checkup_date" class="form-control" required></div>
-<div class="col-md-8"><input name="diagnosis" class="form-control" placeholder="Diagnosis"></div>
-</div>
-
-<textarea name="chief_complaint" class="form-control mt-3" placeholder="Chief Complaint"></textarea>
-<textarea name="history_present_illness" class="form-control mt-2" placeholder="History of Present Illness"></textarea>
-
-<div class="row g-2 mt-3">
-<div class="col"><input name="blood_pressure" class="form-control" placeholder="BP"></div>
-<div class="col"><input name="respiratory_rate" class="form-control" placeholder="RR"></div>
-<div class="col"><input name="weight" class="form-control" placeholder="WT"></div>
-<div class="col"><input name="heart_rate" class="form-control" placeholder="HR"></div>
-<div class="col"><input name="temperature" class="form-control" placeholder="TEMP"></div>
-</div>
-
-<!-- ================= DOCTOR INFO ================= -->
-<div class="row g-3 mt-3">
-<div class="col-md-6"><input name="doc_id" class="form-control" placeholder="Doctor ID" required></div>
-<div class="col-md-6"><input name="doc_fullname" class="form-control" placeholder="Doctor Full Name" required></div>
-</div>
-
-</div>
-</div>
-
-<!-- ================= MEDICATIONS ================= -->
-<div class="card section-card mb-4 shadow-sm">
-<div class="section-header">
-    <i class="fa-solid fa-pills me-2"></i> Medications
-</div>
-<div class="card-body">
-
-<div id="medications"></div>
-
-<button type="button" class="btn btn-outline-secondary mt-2" onclick="addMedication()">
-<i class="fa-solid fa-plus"></i> Add Medication
-</button>
-
-</div>
-</div>
-
 <button type="submit" name="save_all" class="btn btn-primary btn-lg">
-<i class="fa-solid fa-floppy-disk"></i> Save Patient Data
+<i class="fa-solid fa-floppy-disk me-2"></i> Save Patient Data
 </button>
 
 </form>
