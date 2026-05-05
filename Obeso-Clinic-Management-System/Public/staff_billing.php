@@ -72,13 +72,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $stmt = $db->prepare("
         INSERT INTO billing
-        (patient_id, doc_id, checkup_id, consultation_fee, medication_fee, total_amount, payment_status, payment_method)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        (patient_id, doc_id, checkup_id, checkup_date, consultation_fee, medication_fee, total_amount, payment_status, payment_method)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
     $stmt->execute([
         $patient_id,
         $_POST['doc_id'],
         $checkup_id ?: null,
+        !empty($_POST['checkup_date']) ? $_POST['checkup_date'] : null,
         $_POST['consultation_fee'],
         $_POST['medication_fee'],
         $total,
@@ -114,7 +115,7 @@ $sql = "
         b.*, 
         p.full_name, 
         d.doc_fullname,
-        c.checkup_date
+        b.checkup_date
     FROM billing b
     JOIN patients p ON p.patient_id = b.patient_id
     JOIN doctors d ON d.doc_id = b.doc_id
@@ -155,11 +156,11 @@ $bills = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <main class="container-fluid px-4 py-4">
 
 <?php if (isset($_GET['success'])): ?>
-<div class="alert alert-success">Billing record successfully added.</div>
+<div class="alert alert-success" style="margin-top: -40px;">Billing record successfully added.</div>
 <?php endif; ?>
 
 <!-- ================= BILLING FORM ================= -->
-<div class="card shadow mb-4">
+<div class="card shadow mb-4" style="margin-top: 20px;">
 <div class="card-body">
 <h5 class="text-primary mb-3"><i class="fa fa-file-invoice"></i> Billing Form</h5>
 <form method="POST" class="row g-3">
@@ -202,15 +203,21 @@ $bills = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <div class="col-md-3">
 <label class="form-label">Payment Status</label>
 <select name="payment_status" class="form-select">
-<option>Unpaid</option>
-<option>Partial</option>
-<option>Paid</option>
+    <option value="">Select Status</option>
+    <option>Unpaid</option>
+    <option>Partial</option>
+    <option>Paid</option>
 </select>
 </div>
 
 <div class="col-md-3">
 <label class="form-label">Payment Method</label>
-<input type="text" name="payment_method" class="form-control">
+<select name="payment_method" class="form-select">
+    <option value="">Select Method</option>
+    <option value="Cash">Cash</option>
+    <option value="Bank Transfer">Bank Transfer</option>
+    <option value="GCash">GCash</option>
+</select>
 </div>
 
 <div class="col-md-12">
