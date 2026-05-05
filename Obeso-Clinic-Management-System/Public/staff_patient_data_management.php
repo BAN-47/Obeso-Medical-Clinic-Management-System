@@ -12,6 +12,15 @@ require_once "../Config/database.php";
 
 $db = (new Database())->connect();
 
+/* ================= DAILY SLOT COUNT ================= */
+$today = date('Y-m-d');
+$slotStmt = $db->prepare("SELECT COUNT(*) FROM queue WHERE DATE(created_at) = ?");
+$slotStmt->execute([$today]);
+$slotsUsed  = (int)$slotStmt->fetchColumn();
+$slotsTotal = 50;
+$slotsLeft  = max(0, $slotsTotal - $slotsUsed);
+$slotsFull  = $slotsLeft === 0;
+
 /* ================= SEARCH OLD PATIENT (AJAX) ================= */
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search_patient'])) {
     header('Content-Type: application/json');
@@ -38,6 +47,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['queue_old_patient']))
             exit();
         }
 
+        $slotCheck = $db->prepare("SELECT COUNT(*) FROM queue WHERE DATE(created_at) = ?");
+        $slotCheck->execute([date('Y-m-d')]);
+        if ((int)$slotCheck->fetchColumn() >= 50) {
+            echo json_encode(['success' => false, 'error' => 'Sorry, the 50-patient limit for today has been reached.']);
+            exit();
+        }
+
+        $qStmt = $db->prepare("SELECT COUNT(*) FROM queue WHERE DATE(created_at) = ?");
+
         $qStmt = $db->prepare("SELECT COUNT(*) FROM queue WHERE DATE(created_at) = ?");
         $qStmt->execute([$today]);
         $qCount = (int)$qStmt->fetchColumn() + 1;
@@ -59,6 +77,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
     header('Content-Type: application/json');
     try {
         $db->beginTransaction();
+
+        $slotCheck = $db->prepare("SELECT COUNT(*) FROM queue WHERE DATE(created_at) = ?");
+        $slotCheck->execute([date('Y-m-d')]);
+        if ((int)$slotCheck->fetchColumn() >= 50) {
+            $db->rollBack();
+            echo json_encode(['success' => false, 'error' => 'Sorry, the 50-patient limit for today has been reached.']);
+            exit();
+        }
+
+        $stmt = $db->prepare("SELECT patient_id FROM patients WHERE full_name=? AND birthday=? LIMIT 1");  // ← already exists
 
         $stmt = $db->prepare("SELECT patient_id FROM patients WHERE full_name=? AND birthday=? LIMIT 1");
         $stmt->execute([$_POST['full_name'], $_POST['birthday']]);
@@ -296,6 +324,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
     margin: 10px 0 20px;
     display: inline-block;
 }
+
+/* ── Slots remaining badge ── */
+.slots-badge {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #f0f7ff;
+    border: 2px solid #c8d6ec;
+    border-radius: 14px;
+    padding: 10px 20px;
+    min-width: 200px;
+}
+.slots-badge.slots-low {
+    background: #fff8e1;
+    border-color: #f9a825;
+}
+.slots-badge.slots-full {
+    background: #fff0f0;
+    border-color: #dc3545;
+}
+.slots-icon {
+    font-size: 1.6rem;
+    color: #062e6b;
+    line-height: 1;
+}
+.slots-badge.slots-low  .slots-icon { color: #f9a825; }
+.slots-badge.slots-full .slots-icon { color: #dc3545; }
+.slots-label {
+    font-size: .75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #6c757d;
+}
+.slots-count {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: #062e6b;
+    line-height: 1.2;
+}
+.slots-badge.slots-low  .slots-count { color: #e65100; }
+.slots-badge.slots-full .slots-count { color: #dc3545; }
+.slots-sub {
+    font-size: .82rem;
+    font-weight: 500;
+    color: #6c757d;
+}
+
+/* ── Full-day banner ── */
+.full-day-banner {
+    background: #fff0f0;
+    border: 2px solid #dc3545;
+    border-radius: 12px;
+    padding: 18px 22px;
+    color: #dc3545;
+    font-weight: 700;
+    font-size: 1.05rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+}
 </style>
 </head>
 
@@ -344,6 +434,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
 
 <main class="container-fluid px-4 py-4">
 
+<?php if ($slotsFull): ?>
+<div class="full-day-banner">
+    <i class="fa-solid fa-ban fa-lg"></i>
+    <span>Today's queue is full (<?= $slotsTotal ?> / <?= $slotsTotal ?> patients). No more patients can be queued today.</span>
+</div>
+<?php endif; ?>
+
 <?php if (!empty($error)): ?>
 <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
 <?php endif; ?>
@@ -352,7 +449,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
 <?php endif; ?>
 
 <!-- ================= MODE TOGGLE ================= -->
-<div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
     <div class="mode-toggle">
         <button class="mode-btn active" id="btnNew" onclick="switchMode('new')">
             <i class="fa-solid fa-user-plus"></i> New Patient
@@ -360,6 +457,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
         <button class="mode-btn" id="btnOld" onclick="switchMode('old')">
             <i class="fa-solid fa-magnifying-glass"></i> Old Patient
         </button>
+    </div>
+
+    <!-- Slots remaining badge -->
+    <div class="slots-badge <?= $slotsFull ? 'slots-full' : ($slotsLeft <= 10 ? 'slots-low' : '') ?>">
+        <?php if ($slotsFull): ?>
+            <i class="fa-solid fa-ban me-2"></i>
+            <span>Today's queue is full. No more patients can be added (<?= date('F j, Y') ?>).</span>
+        <?php else: ?>
+            <span>Only <strong><span id="slotsLeftDisplay"><?= $slotsLeft ?></span></strong> patient slot<?= $slotsLeft !== 1 ? 's' : '' ?> left for today (<?= date('F j, Y') ?>).</span>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -490,6 +597,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
 </div>
 </div>
 
+<script>
+    const SLOTS_FULL = <?= $slotsFull ? 'true' : 'false' ?>;
+    const SLOTS_LEFT = <?= $slotsLeft ?>;
+</script>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
@@ -533,6 +645,9 @@ function searchPatient(val) {
 function selectPatient(index) {
     const p = window._patientResults[index];
     if (!p) return;
+
+    window._selectedPatientId = p.patient_id;
+
     document.getElementById('searchInput').value = p.full_name;
     document.getElementById('searchResults').style.display = 'none';
     document.getElementById('pi_name').textContent       = p.full_name          || '—';
@@ -550,11 +665,11 @@ function selectPatient(index) {
 }
 
 function clearPatient() {
+    window._selectedPatientId = null;
     document.getElementById('searchInput').value = '';
     document.getElementById('searchResults').style.display = 'none';
-    document.getElementById('patientInfoCard').style.display = 'block';
-    document.getElementById('queueOldBtn').style.display = 'block';
-    window._selectedPatientId = p.patient_id;
+    document.getElementById('patientInfoCard').style.display = 'none';
+    document.getElementById('queueOldBtn').style.display = 'none';
 }
 
 document.addEventListener('click', e => {
@@ -573,14 +688,21 @@ function generateQueueNumber() {
 
 /* ── New Patient: validate → confirm modal ── */
 function showConfirmModal() {
+    if (SLOTS_FULL) {
+        alert("Today's queue is full. No more patients can be added today.");
+        return;
+    }
     const form = document.querySelector('#panelNew form');
     if (!form.checkValidity()) { form.reportValidity(); return; }
     document.getElementById('confirmModal').dataset.mode = 'new';
     document.getElementById('confirmModal').classList.add('show');
 }
 
-/* ── Old Patient: confirm modal ── */
 function showConfirmModalOld() {
+    if (SLOTS_FULL) {
+        alert("Today's queue is full. No more patients can be added today.");
+        return;
+    }
     document.getElementById('confirmModal').dataset.mode = 'old';
     document.getElementById('confirmModal').classList.add('show');
 }
@@ -602,6 +724,7 @@ function confirmQueue() {
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
+                    decrementSlots();
                     showQueueModal(data.queue_number);
                     form.reset();
                 } else {
@@ -619,6 +742,7 @@ function confirmQueue() {
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
+                    decrementSlots();
                     showQueueModal(data.queue_number);
                 } else {
                     alert(data.error || 'Error queuing patient.');
@@ -626,6 +750,13 @@ function confirmQueue() {
             })
             .catch(() => alert('Network error. Please try again.'));
     }
+}
+
+function decrementSlots() {
+    const el = document.getElementById('slotsLeftDisplay');
+    if (!el) return;
+    let current = parseInt(el.textContent) - 1;
+    el.textContent = Math.max(0, current);
 }
 
 function showQueueModal(queueNumber) {
