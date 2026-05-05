@@ -12,27 +12,67 @@ require_once "../Config/database.php";
 
 $db = (new Database())->connect();
 
-/* ================= SAVE ALL (TRANSACTION) ================= */
+/* ================= SEARCH OLD PATIENT (AJAX) ================= */
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search_patient'])) {
+    header('Content-Type: application/json');
+    $name = trim($_GET['search_patient']);
+    $stmt = $db->prepare("SELECT * FROM patients WHERE full_name LIKE ? LIMIT 10");
+    $stmt->execute(["%$name%"]);
+    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    echo json_encode($results);
+    exit();
+}
+
+/* ================= QUEUE OLD PATIENT (AJAX) ================= */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['queue_old_patient'])) {
+    header('Content-Type: application/json');
+    try {
+        $patient_id = (int)$_POST['patient_id'];
+        $today = date('Y-m-d');
+
+        // Check if already queued today
+        $check = $db->prepare("SELECT queue_id FROM queue WHERE patient_id = ? AND DATE(created_at) = ?");
+        $check->execute([$patient_id, $today]);
+        if ($check->fetch()) {
+            echo json_encode(['success' => false, 'error' => 'This patient is already in the queue today.']);
+            exit();
+        }
+
+        $qStmt = $db->prepare("SELECT COUNT(*) FROM queue WHERE DATE(created_at) = ?");
+        $qStmt->execute([$today]);
+        $qCount = (int)$qStmt->fetchColumn() + 1;
+        $queueNumber = 'Q-' . str_pad($qCount, 3, '0', STR_PAD_LEFT);
+
+        $qInsert = $db->prepare("INSERT INTO queue (patient_id, queue_number) VALUES (?, ?)");
+        $qInsert->execute([$patient_id, $queueNumber]);
+
+        echo json_encode(['success' => true, 'queue_number' => $queueNumber]);
+        exit();
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        exit();
+    }
+}
+
+/* ================= SAVE NEW PATIENT (AJAX JSON) ================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
+    header('Content-Type: application/json');
     try {
         $db->beginTransaction();
 
-        // ================= CHECK IF PATIENT EXISTS =================
         $stmt = $db->prepare("SELECT patient_id FROM patients WHERE full_name=? AND birthday=? LIMIT 1");
         $stmt->execute([$_POST['full_name'], $_POST['birthday']]);
         $existingPatient = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($existingPatient) {
-            $patient_id = $existingPatient['patient_id']; // Use existing patient
+            $patient_id = $existingPatient['patient_id'];
         } else {
-            // Insert new patient
             $stmt = $db->prepare(
                 "INSERT INTO patients
                 (full_name,address,birthday,age,sex,civil_status,religion,occupation,
                  contact_person,contact_person_age,contact_number)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?)"
             );
-
             $stmt->execute([
                 $_POST['full_name'],
                 $_POST['address'],
@@ -46,17 +86,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
                 $_POST['contact_person_age'] ?? null,
                 $_POST['contact_number']
             ]);
-
             $patient_id = $db->lastInsertId();
         }
 
         $db->commit();
-        header("Location: staff_patient_data_management.php?success=1");
+
+        // DEBUG: verify patient_id
+        $verify = $db->prepare("SELECT patient_id FROM patients WHERE patient_id = ?");
+        $verify->execute([$patient_id]);
+        $exists = $verify->fetch();
+
+        if (!$exists) {
+            echo json_encode(['success' => false, 'error' => 'DEBUG: patient_id=' . $patient_id . ' not found in patients table after commit.']);
+            exit();
+        }
+
+        $today = date('Y-m-d');
+        $qStmt = $db->prepare("SELECT COUNT(*) FROM queue WHERE DATE(created_at) = ?");
+        $qStmt->execute([$today]);
+        $qCount = (int)$qStmt->fetchColumn() + 1;
+        $queueNumber = 'Q-' . str_pad($qCount, 3, '0', STR_PAD_LEFT);
+
+        $qInsert = $db->prepare("INSERT INTO queue (patient_id, queue_number) VALUES (?, ?)");
+        $qInsert->execute([$patient_id, $queueNumber]);
+
+        echo json_encode(['success' => true, 'patient_id' => $patient_id, 'queue_number' => $queueNumber]);
         exit();
 
     } catch (Exception $e) {
         $db->rollBack();
-        $error = $e->getMessage();
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        exit();
     }
 }
 ?>
@@ -73,6 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
 <link href="../Includes/sidebarStyle.css" rel="stylesheet">
 
 <style>
+/* ── Section cards ── */
 .section-card { border-radius: 14px; }
 .section-header {
     background: #062e6b;
@@ -84,6 +145,156 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
     background-color: #062e6bff !important;
     color: #fff !important;
     font-weight: 600;
+}
+
+/* ── Mode toggle buttons ── */
+.mode-toggle {
+    display: flex;
+    gap: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(6,46,107,.18);
+    width: fit-content;
+}
+.mode-btn {
+    padding: 10px 28px;
+    font-weight: 600;
+    font-size: .97rem;
+    border: 2px solid #062e6b;
+    background: #fff;
+    color: #062e6b;
+    cursor: pointer;
+    transition: background .18s, color .18s, box-shadow .18s;
+    outline: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+.mode-btn:first-child { border-radius: 12px 0 0 12px; border-right: 1px solid #062e6b; }
+.mode-btn:last-child  { border-radius: 0 12px 12px 0; border-left: 1px solid #062e6b; }
+.mode-btn.active {
+    background: #062e6b;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(6,46,107,.22);
+}
+.mode-btn:not(.active):hover {
+    background: #e8eef8;
+}
+
+/* ── Panels (hidden/shown) ── */
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* ── Search area ── */
+.search-wrap { position: relative; }
+.search-wrap input { padding-right: 44px; }
+.search-wrap .search-icon {
+    position: absolute; right: 14px; top: 50%;
+    transform: translateY(-50%);
+    color: #062e6b; pointer-events: none;
+}
+
+/* ── Search results dropdown ── */
+#searchResults {
+    position: absolute;
+    z-index: 9999;
+    width: 100%;
+    background: #fff;
+    border: 1px solid #c8d6ec;
+    border-radius: 0 0 10px 10px;
+    box-shadow: 0 6px 18px rgba(6,46,107,.12);
+    max-height: 260px;
+    overflow-y: auto;
+    display: none;
+}
+#searchResults .result-item {
+    padding: 11px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid #eef2fa;
+    transition: background .13s;
+}
+#searchResults .result-item:last-child { border-bottom: none; }
+#searchResults .result-item:hover { background: #eef2fa; }
+#searchResults .result-item .name { font-weight: 600; color: #062e6b; }
+#searchResults .result-item .meta { font-size: .82rem; color: #6c757d; }
+#searchResults .no-result {
+    padding: 14px 16px;
+    color: #888;
+    font-style: italic;
+    text-align: center;
+}
+
+/* ── Patient info card (read-only view for Old Patient) ── */
+#patientInfoCard {
+    display: none;
+    animation: fadeSlideIn .25s ease;
+}
+@keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.pi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px 16px;
+    padding: 16px 18px;
+}
+.pi-field { font-size: .93rem; color: #1a2a45; }
+.pi-field .pi-lbl { font-weight: 700; color: #1a2a45; }
+.pi-field .pi-val { font-weight: 400; }
+.pi-full { grid-column: 1 / -1; }
+
+/* ── Modals ── */
+.modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(6,46,107,.45);
+    z-index: 10000;
+    align-items: center;
+    justify-content: center;
+    animation: fadeOverlay .2s ease;
+}
+.modal-overlay.show { display: flex; }
+@keyframes fadeOverlay {
+    from { opacity: 0; } to { opacity: 1; }
+}
+.modal-box {
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 16px 48px rgba(6,46,107,.22);
+    padding: 36px 40px 30px;
+    max-width: 420px;
+    width: 90%;
+    text-align: center;
+    animation: slideUp .22s ease;
+}
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.modal-box .modal-icon {
+    font-size: 2.6rem;
+    margin-bottom: 14px;
+}
+.modal-box h5 { font-weight: 700; color: #062e6b; margin-bottom: 8px; }
+.modal-box p  { color: #5a6a82; font-size: .96rem; margin-bottom: 24px; }
+.modal-actions { display: flex; gap: 12px; justify-content: center; }
+.modal-actions .btn { min-width: 110px; border-radius: 10px; font-weight: 600; }
+
+.queue-number {
+    font-size: 5rem;
+    font-weight: 900;
+    color: #062e6b;
+    line-height: 1;
+    letter-spacing: -2px;
+}
+.queue-badge {
+    background: #e8f0fe;
+    border-radius: 12px;
+    padding: 18px 24px;
+    margin: 10px 0 20px;
+    display: inline-block;
 }
 </style>
 </head>
@@ -97,61 +308,182 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
 <div id="layoutSidenav_nav"><?php include "../Includes/staffSidebar.php"; ?></div>
 
 <div id="layoutSidenav_content">
+
+<!-- ── Confirmation Modal ── -->
+<div class="modal-overlay" id="confirmModal">
+    <div class="modal-box">
+        <h5 style="font-size: 1.25rem; font-weight: 700;">Queue this Patient?</h5>
+        <p>Are you sure you want to save and add this patient to the queue?</p>
+        <div class="modal-actions">
+            <button class="btn btn-outline-secondary" onclick="closeConfirmModal()">
+                <i class="fa-solid fa-xmark me-1"></i> No, Cancel
+            </button>
+            <button class="btn btn-primary" onclick="confirmQueue()">
+                <i class="fa-solid fa-check me-1"></i> Yes, Queue
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ── Queue Number Modal ── -->
+<div class="modal-overlay" id="queueModal">
+    <div class="modal-box">
+        <h5>Patient Queued!</h5>
+        <p>The patient has been saved. Here is their queue number:</p>
+        <div class="queue-badge">
+            <div class="queue-number" id="queueNumberDisplay">—</div>
+        </div>
+        <p class="text-muted" style="font-size:.85rem;">Please inform the patient of this number.</p>
+        <div class="modal-actions">
+            <button class="btn btn-primary" onclick="closeQueueModal()">
+                <i class="fa-solid fa-door-open me-1"></i>Done
+            </button>
+        </div>
+    </div>
+</div>
+
 <main class="container-fluid px-4 py-4">
 
 <?php if (!empty($error)): ?>
 <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
 <?php endif; ?>
-
 <?php if (isset($_GET['success'])): ?>
 <div class="alert alert-success">Saved successfully!</div>
 <?php endif; ?>
 
-<form method="POST">
-
-<!-- Hidden patient_id for future use -->
-<input type="hidden" name="patient_id" id="patient_id">
-
-<!-- ================= PATIENT INFO ================= -->
-<div class="card section-card mb-4 shadow-sm">
-<div class="section-header">
-    <i class="fa-solid fa-user me-2"></i> Patient Information
-</div>
-<div class="card-body row g-3">
-<div class="col-md-6"><input name="full_name" class="form-control" placeholder="Full Name" required></div>
-<div class="col-md-3"><input type="date" name="birthday" class="form-control" required></div>
-<div class="col-md-3"><input type="number" name="age" class="form-control" placeholder="Age" required></div>
-
-<div class="col-md-3">
-<select name="sex" class="form-select" required>
-<option value="">Sex</option>
-<option>Male</option><option>Female</option><option>Other</option>
-</select>
+<!-- ================= MODE TOGGLE ================= -->
+<div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
+    <div class="mode-toggle">
+        <button class="mode-btn active" id="btnNew" onclick="switchMode('new')">
+            <i class="fa-solid fa-user-plus"></i> New Patient
+        </button>
+        <button class="mode-btn" id="btnOld" onclick="switchMode('old')">
+            <i class="fa-solid fa-magnifying-glass"></i> Old Patient
+        </button>
+    </div>
 </div>
 
-<div class="col-md-3">
-<select name="civil_status" class="form-select">
-<option value="">Civil Status</option>
-<option>Single</option><option>Married</option><option>Widowed</option><option>Divorced</option>
-</select>
+<!-- ================= NEW PATIENT PANEL ================= -->
+<div class="panel active" id="panelNew">
+    <form method="POST">
+        <input type="hidden" name="patient_id" id="patient_id">
+
+        <div class="card section-card mb-4 shadow-sm">
+            <div class="section-header">
+                <i class="fa-solid fa-user me-2"></i> Patient Information
+            </div>
+            <div class="card-body row g-3">
+                <div class="col-md-6"><input name="full_name" class="form-control" placeholder="Full Name" required></div>
+                <div class="col-md-3"><input type="date" name="birthday" class="form-control" required></div>
+                <div class="col-md-3"><input type="number" name="age" class="form-control" placeholder="Age" required></div>
+
+                <div class="col-md-3">
+                    <select name="sex" class="form-select" required>
+                        <option value="">Sex</option>
+                        <option>Male</option><option>Female</option><option>Other</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <select name="civil_status" class="form-select">
+                        <option value="">Civil Status</option>
+                        <option>Single</option><option>Married</option><option>Widowed</option><option>Divorced</option>
+                    </select>
+                </div>
+                <div class="col-md-3"><input name="contact_number" class="form-control" placeholder="Contact Number" required></div>
+                <div class="col-md-3"><input name="occupation" class="form-control" placeholder="Occupation"></div>
+
+                <div class="col-md-6"><input name="contact_person" class="form-control" placeholder="Contact Person"></div>
+                <div class="col-md-3"><input type="number" name="contact_person_age" class="form-control" placeholder="Contact Person Age"></div>
+                <div class="col-md-3"><input name="religion" class="form-control" placeholder="Religion"></div>
+                <div class="col-12"><textarea name="address" class="form-control" placeholder="Address"></textarea></div>
+            </div>
+        </div>
+
+        <button type="button" class="btn btn-primary btn-lg" onclick="showConfirmModal()">
+            <i class="fa-solid fa-floppy-disk me-2"></i> Save and Queue Patient
+        </button>
+    </form>
 </div>
 
-<div class="col-md-3"><input name="contact_number" class="form-control" placeholder="Contact Number" required></div>
-<div class="col-md-3"><input name="occupation" class="form-control" placeholder="Occupation"></div>
+<!-- ================= OLD PATIENT PANEL ================= -->
+<div class="panel" id="panelOld">
+    <div class="card section-card mb-4 shadow-sm">
+        <div class="section-header">
+            <i class="fa-solid fa-magnifying-glass me-2"></i> Search Existing Patient
+        </div>
+        <div class="card-body">
+            <div class="row justify-content-center">
+                <div class="col-md-7">
+                    <label class="form-label fw-semibold text-secondary mb-1">Enter patient name</label>
+                    <div class="search-wrap position-relative">
+                        <input type="text" id="searchInput" class="form-control form-control-lg"
+                               placeholder="Search by full name…" autocomplete="off"
+                               oninput="searchPatient(this.value)">
+                        <span class="search-icon"><i class="fa-solid fa-magnifying-glass"></i></span>
+                        <div id="searchResults"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-<div class="col-md-6"><input name="contact_person" class="form-control" placeholder="Contact Person"></div>
-<div class="col-md-3"><input type="number" name="contact_person_age" class="form-control" placeholder="Contact Person Age"></div>
-<div class="col-md-3"><input name="religion" class="form-control" placeholder="Religion"></div>
-
-<div class="col-12"><textarea name="address" class="form-control" placeholder="Address"></textarea></div>
+    <!-- Patient Info Display -->
+    <div class="card section-card shadow-sm" id="patientInfoCard">
+        <div class="section-header d-flex align-items-center justify-content-between">
+            <span><i class="fa-solid fa-id-card me-2"></i> Patient Record</span>
+            <button type="button" class="btn btn-sm btn-light ms-auto"
+                    onclick="clearPatient()" title="Clear">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        <div class="card-body p-0">
+            <div class="pi-grid">
+                <!-- Row 1: Name | Age | Sex | Contact -->
+                <div class="pi-field">
+                    <span class="pi-lbl">Name: </span><span class="pi-val" id="pi_name">—</span>
+                </div>
+                <div class="pi-field">
+                    <span class="pi-lbl">Age: </span><span class="pi-val" id="pi_age">—</span>
+                </div>
+                <div class="pi-field">
+                    <span class="pi-lbl">Sex: </span><span class="pi-val" id="pi_sex">—</span>
+                </div>
+                <div class="pi-field">
+                    <span class="pi-lbl">Contact: </span><span class="pi-val" id="pi_contact">—</span>
+                </div>
+                <!-- Row 2: Civil Status | Religion | Occupation | (empty) -->
+                <div class="pi-field">
+                    <span class="pi-lbl">Civil Status: </span><span class="pi-val" id="pi_civil">—</span>
+                </div>
+                <div class="pi-field">
+                    <span class="pi-lbl">Religion: </span><span class="pi-val" id="pi_religion">—</span>
+                </div>
+                <div class="pi-field">
+                    <span class="pi-lbl">Occupation: </span><span class="pi-val" id="pi_occupation">—</span>
+                </div>
+                <div class="pi-field"></div>
+                <!-- Row 3: Contact Person | Contact Person Age | (spans) -->
+                <div class="pi-field">
+                    <span class="pi-lbl">Contact Person: </span><span class="pi-val" id="pi_cp">—</span>
+                </div>
+                <div class="pi-field">
+                    <span class="pi-lbl">Contact Person Age: </span><span class="pi-val" id="pi_cp_age">—</span>
+                </div>
+                <div class="pi-field"></div>
+                <div class="pi-field"></div>
+                <!-- Row 4: Address (full width) -->
+                <div class="pi-field pi-full">
+                    <span class="pi-lbl">Address: </span><span class="pi-val" id="pi_address">—</span>
+                </div>
+            </div>
+        </div>
+        <div class="card-footer bg-transparent border-top-0 px-4 pb-3 pt-0" id="queueOldBtn" style="display:none;">
+            <button type="button" class="btn btn-primary btn-lg" onclick="showConfirmModalOld()">
+                <i class="fa-solid fa-arrow-right-to-bracket me-2"></i> Queue Patient
+            </button>
+        </div>
+    </div>
 </div>
-</div>
-
-<button type="submit" name="save_all" class="btn btn-primary btn-lg">
-<i class="fa-solid fa-floppy-disk me-2"></i> Save Patient Data
-</button>
-
-</form>
 
 </main>
 <?php include "../Includes/footer.html"; ?>
@@ -161,18 +493,153 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-function addMedication() {
-document.getElementById('medications').insertAdjacentHTML('beforeend', `
-<div class="row g-2 mb-2">
-<div class="col"><input name="generic_name[]" class="form-control" placeholder="Generic"></div>
-<div class="col"><input name="brand_name[]" class="form-control" placeholder="Brand"></div>
-<div class="col"><input name="dose[]" class="form-control" placeholder="Dose"></div>
-<div class="col"><input name="amount[]" class="form-control" placeholder="Amount"></div>
-<div class="col"><input name="frequency[]" class="form-control" placeholder="Frequency"></div>
-<div class="col"><input name="duration[]" class="form-control" placeholder="Duration"></div>
-</div>
-`);
+function switchMode(mode) {
+    document.getElementById('panelNew').classList.toggle('active', mode === 'new');
+    document.getElementById('panelOld').classList.toggle('active', mode === 'old');
+    document.getElementById('btnNew').classList.toggle('active', mode === 'new');
+    document.getElementById('btnOld').classList.toggle('active', mode === 'old');
 }
+
+let searchTimer;
+window._patientResults = [];
+
+function searchPatient(val) {
+    clearTimeout(searchTimer);
+    const box = document.getElementById('searchResults');
+    if (val.trim().length < 2) { box.style.display = 'none'; return; }
+    searchTimer = setTimeout(() => {
+        fetch(window.location.pathname + '?search_patient=' + encodeURIComponent(val.trim()))
+            .then(r => r.json())
+            .then(data => {
+                window._patientResults = data;
+                if (!data.length) {
+                    box.innerHTML = '<div class="no-result"><i class="fa-solid fa-circle-xmark me-1 text-danger"></i>No patient found.</div>';
+                } else {
+                    box.innerHTML = data.map((p, i) => `
+                        <div class="result-item" onclick="selectPatient(${i})">
+                            <div class="name">${p.full_name}</div>
+                            <div class="meta">${p.birthday ?? ''} &nbsp;|&nbsp; ${p.sex ?? ''} &nbsp;|&nbsp; ${p.contact_number ?? ''}</div>
+                        </div>`).join('');
+                }
+                box.style.display = 'block';
+            })
+            .catch(() => {
+                box.innerHTML = '<div class="no-result text-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i>Search error. Try again.</div>';
+                box.style.display = 'block';
+            });
+    }, 280);
+}
+
+function selectPatient(index) {
+    const p = window._patientResults[index];
+    if (!p) return;
+    document.getElementById('searchInput').value = p.full_name;
+    document.getElementById('searchResults').style.display = 'none';
+    document.getElementById('pi_name').textContent       = p.full_name          || '—';
+    document.getElementById('pi_age').textContent        = p.age                || '—';
+    document.getElementById('pi_sex').textContent        = p.sex                || '—';
+    document.getElementById('pi_civil').textContent      = p.civil_status       || '—';
+    document.getElementById('pi_contact').textContent    = p.contact_number     || '—';
+    document.getElementById('pi_occupation').textContent = p.occupation         || '—';
+    document.getElementById('pi_religion').textContent   = p.religion           || '—';
+    document.getElementById('pi_cp').textContent         = p.contact_person     || '—';
+    document.getElementById('pi_cp_age').textContent     = p.contact_person_age || '—';
+    document.getElementById('pi_address').textContent    = p.address            || '—';
+    document.getElementById('patientInfoCard').style.display = 'block';
+    document.getElementById('queueOldBtn').style.display = 'block';
+}
+
+function clearPatient() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('searchResults').style.display = 'none';
+    document.getElementById('patientInfoCard').style.display = 'block';
+    document.getElementById('queueOldBtn').style.display = 'block';
+    window._selectedPatientId = p.patient_id;
+}
+
+document.addEventListener('click', e => {
+    if (!e.target.closest('.search-wrap'))
+        document.getElementById('searchResults').style.display = 'none';
+});
+
+/* ── Queue number generator ── */
+function generateQueueNumber() {
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const key = 'queueDate_' + today;
+    let count = parseInt(sessionStorage.getItem(key) || '0') + 1;
+    sessionStorage.setItem(key, count);
+    return 'Q-' + String(count).padStart(3, '0');
+}
+
+/* ── New Patient: validate → confirm modal ── */
+function showConfirmModal() {
+    const form = document.querySelector('#panelNew form');
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+    document.getElementById('confirmModal').dataset.mode = 'new';
+    document.getElementById('confirmModal').classList.add('show');
+}
+
+/* ── Old Patient: confirm modal ── */
+function showConfirmModalOld() {
+    document.getElementById('confirmModal').dataset.mode = 'old';
+    document.getElementById('confirmModal').classList.add('show');
+}
+
+function closeConfirmModal() {
+    document.getElementById('confirmModal').classList.remove('show');
+}
+
+function confirmQueue() {
+    const mode = document.getElementById('confirmModal').dataset.mode || 'new';
+    closeConfirmModal();
+
+    if (mode === 'new') {
+        const form = document.querySelector('#panelNew form');
+        const formData = new FormData(form);
+        formData.append('save_all', '1');
+
+        fetch(window.location.pathname, { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showQueueModal(data.queue_number);
+                    form.reset();
+                } else {
+                    alert('Error saving patient: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(() => alert('Network error. Please try again.'));
+
+    } else {
+        const fd = new FormData();
+        fd.append('queue_old_patient', '1');
+        fd.append('patient_id', window._selectedPatientId);
+
+        fetch(window.location.pathname, { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showQueueModal(data.queue_number);
+                } else {
+                    alert(data.error || 'Error queuing patient.');
+                }
+            })
+            .catch(() => alert('Network error. Please try again.'));
+    }
+}
+
+function showQueueModal(queueNumber) {
+    document.getElementById('queueNumberDisplay').textContent = queueNumber;
+    document.getElementById('queueModal').classList.add('show');
+}
+
+function closeQueueModal() {
+    document.getElementById('queueModal').classList.remove('show');
+}
+
+document.addEventListener('click', e => {
+    if (e.target.id === 'confirmModal') closeConfirmModal();
+});
 </script>
 
 </body>
