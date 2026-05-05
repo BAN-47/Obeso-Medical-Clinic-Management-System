@@ -187,8 +187,8 @@ if (isset($_GET['patient_id'])) {
 </div>
 
 <div class="row mb-2">
-<div class="col-md-3"><strong>Civil Status:</strong> <?= htmlspecialchars($patient['civil_status']) ?></div>
-<div class="col-md-3"><strong>Religion:</strong> <?= htmlspecialchars($patient['religion']) ?></div>
+<div class="col-md-4"><strong>Civil Status:</strong> <?= htmlspecialchars($patient['civil_status']) ?></div>
+<div class="col-md-2"><strong>Religion:</strong> <?= htmlspecialchars($patient['religion']) ?></div>
 <div class="col-md-3"><strong>Occupation:</strong> <?= htmlspecialchars($patient['occupation']) ?></div>
 </div>
 

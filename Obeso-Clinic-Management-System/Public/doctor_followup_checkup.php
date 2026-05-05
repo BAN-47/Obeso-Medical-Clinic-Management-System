@@ -153,7 +153,7 @@ if ($searchDate) {
 <?php endif; ?>
 
 <!-- ================= FOLLOW-UP FORM ================= -->
-<div class="card shadow mb-4">
+<div class="card shadow mb-4" style="margin-top: -40px;">
 <div class="section-header">
 <i class="fa fa-edit me-2"></i> Follow-Up Details
 </div>

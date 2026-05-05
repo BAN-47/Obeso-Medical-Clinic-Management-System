@@ -150,7 +150,7 @@ $medications = $db->query("
 <div id="dashboardCapture">
 
 <!-- MOST COMMON ILLNESS -->
-<div class="card insight-box shadow mb-4">
+<div class="card insight-box shadow mb-4" style="margin-top: -40px;">
 <div class="card-body">
 <h5 class="fw-bold text-warning">
 <i class="fa fa-exclamation-triangle me-1"></i> Most Common Illness This Month

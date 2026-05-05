@@ -114,8 +114,8 @@ while ($d = $diagStmt->fetch(PDO::FETCH_ASSOC)) {
 <main class="container-fluid px-4 py-4">
 
 <!-- ================= WELCOME ================= -->
-<div class="mb-4">
-<h4 class="fw-bold">
+<div class="mb-4" style="margin-top: -40px;">
+<h4 class="fw-bold" style="font-size: 35px;">
 Welcome, <?= htmlspecialchars($doctor['doc_fullname']) ?>
 </h4>
 <p class="text-muted">Here’s a summary of your clinical activity</p>
