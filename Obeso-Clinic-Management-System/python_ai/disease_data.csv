@@ -1,0 +1,96 @@
+﻿fever,cough,headache,fatigue,body_pain,sore_throat,vomiting,diarrhea,disease
+1,1,0,1,1,0,0,0,Influenza
+1,1,0,1,1,0,0,0,Influenza
+1,0,1,1,0,0,0,0,Dengue
+1,0,1,1,0,0,0,0,Dengue
+1,0,1,1,1,0,0,0,Dengue
+0,1,0,1,0,1,0,0,Common Cold
+0,1,0,0,0,1,0,0,Common Cold
+0,1,0,1,0,1,0,0,Common Cold
+1,0,1,0,0,0,1,0,Typhoid
+1,0,0,1,0,0,1,1,Typhoid
+0,0,1,1,0,0,0,0,Migraine
+0,0,1,0,0,0,0,0,Migraine
+1,1,1,1,1,1,0,0,COVID-19
+1,1,0,1,1,1,0,0,COVID-19
+1,1,1,1,0,1,0,0,COVID-19
+0,0,0,1,0,0,1,1,Gastroenteritis
+0,0,0,0,0,0,1,1,Gastroenteritis
+0,0,1,1,0,0,1,1,Gastroenteritis
+1,0,0,1,0,0,0,1,Cholera
+1,0,0,1,0,0,1,1,Cholera
+0,1,0,0,0,1,0,0,Pharyngitis
+0,1,0,1,0,1,0,0,Pharyngitis
+1,0,0,0,1,0,0,0,Malaria
+1,0,1,1,1,0,0,0,Malaria
+1,1,0,0,0,0,0,0,Bronchitis
+1,1,0,1,0,0,0,0,Bronchitis
+0,1,0,1,0,0,0,0,Bronchitis
+0,0,1,0,0,0,0,0,Hypertension
+0,0,1,1,0,0,0,0,Hypertension
+0,0,1,0,1,0,0,0,Hypertension
+1,0,0,1,1,0,0,0,Leptospirosis
+1,0,1,1,1,0,0,0,Leptospirosis
+1,0,0,1,1,0,1,0,Leptospirosis
+0,0,0,1,0,0,0,1,Diarrhea
+0,0,0,0,0,0,0,1,Diarrhea
+0,0,0,1,0,0,0,1,Diarrhea
+1,1,1,0,0,1,0,0,Strep Throat
+1,0,0,0,0,1,0,0,Strep Throat
+0,0,0,1,0,0,0,0,Anemia
+0,0,1,1,0,0,0,0,Anemia
+0,0,0,1,1,0,0,0,Anemia
+1,0,0,1,1,0,0,0,Typhoid Fever
+1,0,1,1,0,0,1,0,Typhoid Fever
+0,1,0,1,1,0,0,0,Pneumonia
+1,1,0,1,1,0,0,0,Pneumonia
+1,1,1,1,0,0,0,0,Pneumonia
+0,0,0,0,1,0,0,0,Arthritis
+0,0,1,1,1,0,0,0,Arthritis
+1,0,0,0,0,0,0,0,UTI
+1,0,0,1,0,0,0,0,UTI
+0,0,1,1,0,0,0,0,UTI
+0,0,0,1,0,0,1,0,Ulcer
+0,0,1,1,0,0,1,0,Ulcer
+0,0,0,1,0,0,1,1,Ulcer
+1,1,0,1,0,1,0,0,Tonsillitis
+1,0,0,0,0,1,0,0,Tonsillitis
+0,1,0,0,0,1,0,0,Tonsillitis
+1,0,1,1,0,0,0,0,Meningitis
+1,0,1,1,1,0,0,0,Meningitis
+1,0,1,0,0,0,1,0,Meningitis
+0,0,0,1,0,0,0,0,Diabetes
+0,0,1,1,0,0,0,0,Diabetes
+0,0,0,1,1,0,0,0,Diabetes
+0,1,1,1,0,0,0,0,Asthma
+0,1,0,1,0,0,0,0,Asthma
+0,1,0,0,1,0,0,0,Asthma
+1,0,0,1,1,0,1,0,Hepatitis A
+1,0,0,1,0,0,1,0,Hepatitis A
+1,0,1,1,0,0,0,0,Hepatitis A
+0,0,0,1,1,0,0,0,Rheumatism
+0,0,1,0,1,0,0,0,Rheumatism
+1,1,0,1,0,0,0,0,Influenza
+0,1,1,1,0,1,0,0,COVID-19
+1,0,0,1,1,0,1,1,Dengue
+0,0,0,0,0,0,1,1,Gastroenteritis
+1,1,0,0,0,1,0,0,Strep Throat
+0,1,0,1,0,0,0,0,Pneumonia
+1,0,1,0,1,0,0,0,Malaria
+0,0,0,1,0,0,0,1,Cholera
+0,0,1,1,0,0,0,0,Migraine
+0,0,0,1,0,0,1,0,Ulcer
+1,0,0,0,0,1,0,0,UTI
+0,0,0,1,1,0,0,0,Arthritis
+1,1,1,1,1,0,0,0,Influenza
+1,0,1,1,0,0,0,1,Typhoid
+0,1,0,0,0,0,0,0,Bronchitis
+1,0,0,1,0,0,0,0,Leptospirosis
+0,0,1,0,0,0,0,0,Hypertension
+0,0,0,0,1,0,0,0,Rheumatism
+1,1,0,1,0,1,0,0,Tonsillitis
+1,0,1,1,1,0,1,0,Meningitis
+0,0,0,1,0,0,0,0,Diabetes
+0,1,0,1,0,0,0,0,Asthma
+1,0,0,1,0,0,1,1,Hepatitis A
+0,0,0,1,0,0,0,0,Anemia
