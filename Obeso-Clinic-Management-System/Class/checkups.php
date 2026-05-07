@@ -143,6 +143,18 @@ class Checkup {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /* ================= GET CHECKUP BY ID ================= */
+    public function get($checkup_id) {
+        $stmt = $this->conn->prepare("
+            SELECT *
+            FROM {$this->table}
+            WHERE checkup_id = ?
+        ");
+
+        $stmt->execute([$checkup_id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
     /* ================= SEARCH CHECKUPS BY DATE (WITH PAGINATION) ================= */
     public function searchByDate($patient_id, $checkup_date = null, $limit = 3, $offset = 0) {
         if ($checkup_date) {

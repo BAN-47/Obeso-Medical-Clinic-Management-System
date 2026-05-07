@@ -264,6 +264,7 @@ function addMedication() {
 <div class="modal-dialog modal-xl modal-dialog-scrollable">
 <div class="modal-content">
 
+
 <div class="modal-header" style="background:#062e6b;">
     <h5 class="modal-title text-white" id="newRecordModalLabel">
         <i class="fa-solid fa-file-medical me-2"></i> Add New Record
@@ -426,6 +427,13 @@ Checkup — <?= $c['checkup_date'] ?> (Doctor: <?= htmlspecialchars($c['doc_full
 </tbody>
 </table>
 <?php endif; ?>
+
+<div class="mt-3">
+<a href="export_prescription.php?checkup_id=<?= $c['checkup_id'] ?>" 
+   class="btn btn-danger">
+   <i class="fa fa-file-pdf"></i> Export Prescription PDF
+</a>
+</div>
 
 <!-- ================= CREATE FOLLOW UP CHECKUP BUTTON (PER CHECKUP) ================= -->
 <div class="mt-3">
