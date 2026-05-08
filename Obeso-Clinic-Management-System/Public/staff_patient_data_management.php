@@ -39,7 +39,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['queue_old_patient']))
         $patient_id = (int)$_POST['patient_id'];
         $today = date('Y-m-d');
 
-        // Check if already queued today
         $check = $db->prepare("SELECT queue_id FROM queue WHERE patient_id = ? AND DATE(created_at) = ?");
         $check->execute([$patient_id, $today]);
         if ($check->fetch()) {
@@ -53,8 +52,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['queue_old_patient']))
             echo json_encode(['success' => false, 'error' => 'Sorry, the 50-patient limit for today has been reached.']);
             exit();
         }
-
-        $qStmt = $db->prepare("SELECT COUNT(*) FROM queue WHERE DATE(created_at) = ?");
 
         $qStmt = $db->prepare("SELECT COUNT(*) FROM queue WHERE DATE(created_at) = ?");
         $qStmt->execute([$today]);
@@ -85,8 +82,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
             echo json_encode(['success' => false, 'error' => 'Sorry, the 50-patient limit for today has been reached.']);
             exit();
         }
-
-        $stmt = $db->prepare("SELECT patient_id FROM patients WHERE full_name=? AND birthday=? LIMIT 1");  // ← already exists
 
         $stmt = $db->prepare("SELECT patient_id FROM patients WHERE full_name=? AND birthday=? LIMIT 1");
         $stmt->execute([$_POST['full_name'], $_POST['birthday']]);
@@ -119,7 +114,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
 
         $db->commit();
 
-        // DEBUG: verify patient_id
         $verify = $db->prepare("SELECT patient_id FROM patients WHERE patient_id = ?");
         $verify->execute([$patient_id]);
         $exists = $verify->fetch();
@@ -161,7 +155,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
 <link href="../Includes/sidebarStyle.css" rel="stylesheet">
 
 <style>
-/* ── Section cards ── */
 .section-card { border-radius: 14px; }
 .section-header {
     background: #062e6b;
@@ -174,8 +167,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
     color: #fff !important;
     font-weight: 600;
 }
-
-/* ── Mode toggle buttons ── */
 .mode-toggle {
     display: flex;
     gap: 0;
@@ -206,15 +197,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
     color: #fff;
     box-shadow: 0 2px 8px rgba(6,46,107,.22);
 }
-.mode-btn:not(.active):hover {
-    background: #e8eef8;
-}
-
-/* ── Panels (hidden/shown) ── */
+.mode-btn:not(.active):hover { background: #e8eef8; }
 .panel { display: none; }
 .panel.active { display: block; }
-
-/* ── Search area ── */
 .search-wrap { position: relative; }
 .search-wrap input { padding-right: 44px; }
 .search-wrap .search-icon {
@@ -222,8 +207,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
     transform: translateY(-50%);
     color: #062e6b; pointer-events: none;
 }
-
-/* ── Search results dropdown ── */
 #searchResults {
     position: absolute;
     z-index: 9999;
@@ -252,8 +235,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
     font-style: italic;
     text-align: center;
 }
-
-/* ── Patient info card (read-only view for Old Patient) ── */
 #patientInfoCard {
     display: none;
     animation: fadeSlideIn .25s ease;
@@ -272,8 +253,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
 .pi-field .pi-lbl { font-weight: 700; color: #1a2a45; }
 .pi-field .pi-val { font-weight: 400; }
 .pi-full { grid-column: 1 / -1; }
-
-/* ── Modals ── */
 .modal-overlay {
     display: none;
     position: fixed; inset: 0;
@@ -301,15 +280,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
     from { opacity: 0; transform: translateY(24px); }
     to   { opacity: 1; transform: translateY(0); }
 }
-.modal-box .modal-icon {
-    font-size: 2.6rem;
-    margin-bottom: 14px;
-}
 .modal-box h5 { font-weight: 700; color: #062e6b; margin-bottom: 8px; }
 .modal-box p  { color: #5a6a82; font-size: .96rem; margin-bottom: 24px; }
 .modal-actions { display: flex; gap: 12px; justify-content: center; }
 .modal-actions .btn { min-width: 110px; border-radius: 10px; font-weight: 600; }
-
 .queue-number {
     font-size: 5rem;
     font-weight: 900;
@@ -324,8 +298,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
     margin: 10px 0 20px;
     display: inline-block;
 }
-
-/* ── Slots remaining badge ── */
 .slots-badge {
     display: flex;
     align-items: center;
@@ -351,13 +323,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
 }
 .slots-badge.slots-low  .slots-icon { color: #f9a825; }
 .slots-badge.slots-full .slots-icon { color: #dc3545; }
-.slots-label {
-    font-size: .75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .06em;
-    color: #6c757d;
-}
 .slots-count {
     font-size: 1.1rem;
     font-weight: 800;
@@ -366,13 +331,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
 }
 .slots-badge.slots-low  .slots-count { color: #e65100; }
 .slots-badge.slots-full .slots-count { color: #dc3545; }
-.slots-sub {
-    font-size: .82rem;
-    font-weight: 500;
-    color: #6c757d;
-}
-
-/* ── Full-day banner ── */
 .full-day-banner {
     background: #fff0f0;
     border: 2px solid #dc3545;
@@ -399,7 +357,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
 
 <div id="layoutSidenav_content">
 
-<!-- ── Confirmation Modal ── -->
+<!-- Confirmation Modal -->
 <div class="modal-overlay" id="confirmModal">
     <div class="modal-box">
         <h5 style="font-size: 1.25rem; font-weight: 700;">Queue this Patient?</h5>
@@ -415,7 +373,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
     </div>
 </div>
 
-<!-- ── Queue Number Modal ── -->
+<!-- Queue Number Modal -->
 <div class="modal-overlay" id="queueModal">
     <div class="modal-box">
         <h5>Patient Queued!</h5>
@@ -448,7 +406,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
 <div class="alert alert-success">Saved successfully!</div>
 <?php endif; ?>
 
-<!-- ================= MODE TOGGLE ================= -->
+<!-- MODE TOGGLE -->
 <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
     <div class="mode-toggle">
         <button class="mode-btn active" id="btnNew" onclick="switchMode('new')">
@@ -459,7 +417,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
         </button>
     </div>
 
-    <!-- Slots remaining badge -->
     <div class="slots-badge <?= $slotsFull ? 'slots-full' : ($slotsLeft <= 10 ? 'slots-low' : '') ?>">
         <?php if ($slotsFull): ?>
             <i class="fa-solid fa-ban me-2"></i>
@@ -470,7 +427,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
     </div>
 </div>
 
-<!-- ================= NEW PATIENT PANEL ================= -->
+<!-- NEW PATIENT PANEL -->
 <div class="panel active" id="panelNew">
     <form method="POST">
         <input type="hidden" name="patient_id" id="patient_id">
@@ -502,7 +459,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
                 <div class="col-md-6"><input name="contact_person" class="form-control" placeholder="Contact Person"></div>
                 <div class="col-md-3"><input type="number" name="contact_person_age" class="form-control" placeholder="Contact Person Age"></div>
                 <div class="col-md-3"><input name="religion" class="form-control" placeholder="Religion"></div>
+
                 <div class="col-12"><textarea name="address" class="form-control" placeholder="Address"></textarea></div>
+
+                <!-- Vitals -->
+                <div class="col-12">
+                    <div class="row g-2">
+                        <div class="col">
+                            <label class="form-label text-muted small">BP</label>
+                            <input name="blood_pressure" class="form-control text-center" placeholder="BP">
+                        </div>
+                        <div class="col">
+                            <label class="form-label text-muted small">RR</label>
+                            <input name="respiratory_rate" class="form-control text-center" placeholder="RR">
+                        </div>
+                        <div class="col">
+                            <label class="form-label text-muted small">WT</label>
+                            <input name="weight" class="form-control text-center" placeholder="WT">
+                        </div>
+                        <div class="col">
+                            <label class="form-label text-muted small">HR</label>
+                            <input name="heart_rate" class="form-control text-center" placeholder="HR">
+                        </div>
+                        <div class="col">
+                            <label class="form-label text-muted small">TEMP</label>
+                            <input name="temperature" class="form-control text-center" placeholder="TEMP">
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
 
@@ -512,7 +497,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
     </form>
 </div>
 
-<!-- ================= OLD PATIENT PANEL ================= -->
+<!-- OLD PATIENT PANEL -->
 <div class="panel" id="panelOld">
     <div class="card section-card mb-4 shadow-sm">
         <div class="section-header">
@@ -545,7 +530,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
         </div>
         <div class="card-body p-0">
             <div class="pi-grid">
-                <!-- Row 1: Name | Age | Sex | Contact -->
                 <div class="pi-field">
                     <span class="pi-lbl">Name: </span><span class="pi-val" id="pi_name">—</span>
                 </div>
@@ -558,7 +542,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
                 <div class="pi-field">
                     <span class="pi-lbl">Contact: </span><span class="pi-val" id="pi_contact">—</span>
                 </div>
-                <!-- Row 2: Civil Status | Religion | Occupation | (empty) -->
                 <div class="pi-field">
                     <span class="pi-lbl">Civil Status: </span><span class="pi-val" id="pi_civil">—</span>
                 </div>
@@ -569,7 +552,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
                     <span class="pi-lbl">Occupation: </span><span class="pi-val" id="pi_occupation">—</span>
                 </div>
                 <div class="pi-field"></div>
-                <!-- Row 3: Contact Person | Contact Person Age | (spans) -->
                 <div class="pi-field">
                     <span class="pi-lbl">Contact Person: </span><span class="pi-val" id="pi_cp">—</span>
                 </div>
@@ -578,7 +560,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
                 </div>
                 <div class="pi-field"></div>
                 <div class="pi-field"></div>
-                <!-- Row 4: Address (full width) -->
                 <div class="pi-field pi-full">
                     <span class="pi-lbl">Address: </span><span class="pi-val" id="pi_address">—</span>
                 </div>
@@ -677,16 +658,6 @@ document.addEventListener('click', e => {
         document.getElementById('searchResults').style.display = 'none';
 });
 
-/* ── Queue number generator ── */
-function generateQueueNumber() {
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const key = 'queueDate_' + today;
-    let count = parseInt(sessionStorage.getItem(key) || '0') + 1;
-    sessionStorage.setItem(key, count);
-    return 'Q-' + String(count).padStart(3, '0');
-}
-
-/* ── New Patient: validate → confirm modal ── */
 function showConfirmModal() {
     if (SLOTS_FULL) {
         alert("Today's queue is full. No more patients can be added today.");

@@ -396,13 +396,6 @@ Checkup — <?= $c['checkup_date'] ?> (Doctor: <?= htmlspecialchars($c['doc_full
 <p><strong>HPI:</strong> <?= htmlspecialchars($c['history_present_illness']) ?></p>
 
 <hr>
-<div class="row text-center">
-<div class="col">BP<br><strong><?= $c['blood_pressure'] ?></strong></div>
-<div class="col">RR<br><strong><?= $c['respiratory_rate'] ?></strong></div>
-<div class="col">WT<br><strong><?= $c['weight'] ?></strong></div>
-<div class="col">HR<br><strong><?= $c['heart_rate'] ?></strong></div>
-<div class="col">TEMP<br><strong><?= $c['temperature'] ?></strong></div>
-</div>
 
 <?php if (!empty($c['medications'])): ?>
 <hr>
