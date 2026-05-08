@@ -80,5 +80,13 @@ class Patient {
             ":patient_id" => $patient_id
         ]);
     }
+
+    // 🔍 Get patient by ID
+    public function get($patient_id) {
+        $sql = "SELECT * FROM {$this->table} WHERE patient_id = :patient_id";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute([":patient_id" => $patient_id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
 }
 ?>
