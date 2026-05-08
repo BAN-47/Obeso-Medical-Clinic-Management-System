@@ -53,7 +53,6 @@ if (isset($_GET['patient_id'])) {
     $patientStmt->execute([$pid]);
     $patient = $patientStmt->fetch(PDO::FETCH_ASSOC);
 
-    // Fetch checkups with optional date filter and pagination
     if ($searchDate) {
         $countCheckupStmt = $db->prepare("SELECT COUNT(*) FROM checkups WHERE patient_id = ? AND checkup_date = ?");
         $countCheckupStmt->execute([$pid, $searchDate]);
@@ -79,7 +78,6 @@ if (isset($_GET['patient_id'])) {
     $checkups = $cstmt->fetchAll(PDO::FETCH_ASSOC);
     $totalCheckupPages = max(1, ceil($totalCheckups / $checkupLimit));
 
-    // Fetch medications for each checkup
     foreach ($checkups as $i => $c) {
         $mstmt = $db->prepare("
             SELECT pm.*, m.generic_name, m.brand_name
