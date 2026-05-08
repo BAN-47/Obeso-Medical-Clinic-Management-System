@@ -317,7 +317,7 @@ body{
 
     <!-- RX -->
     <div class="rx-title">
-        Prescription
+        Medications
     </div>
 
     <div class="rx-area">
