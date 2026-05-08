@@ -78,170 +78,287 @@ while (count($medications) < 6) {
 
 $html = <<<HTML
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prescription Form</title>
+
 <style>
-body {
+
+body{
     font-family: Arial, sans-serif;
-    font-size: 12px;
-    margin: 0;
-    padding: 0;
+    background:#f4f4f4;
+    padding:20px;
 }
-.page {
-    padding: 24px;
+
+.prescription{
+    width:900px;
+    margin:auto;
+    background:white;
+    padding:25px;
+    border:2px solid #000;
 }
-.prescription {
-    border: 1px solid #000;
-    padding: 18px;
+
+.top-section{
+    display:flex;
+    justify-content:space-between;
+    margin-bottom:20px;
 }
-.top-section {
-    display: flex;
-    justify-content: space-between;
-    gap: 14px;
-    margin-bottom: 16px;
+
+.left-info{
+    width:45%;
 }
-.left-block,
-.right-block {
-    width: 100%;
+
+.left-info label{
+    font-size:13px;
+    font-weight:bold;
 }
-.field-row {
-    display: flex;
-    align-items: center;
-    margin-bottom: 8px;
+
+.input-line{
+    border:none;
+    border-bottom:1px solid #000;
+    width:100%;
+    margin-bottom:10px;
+    outline:none;
 }
-.field-label {
-    width: 60px;
-    font-weight: bold;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+
+.vitals{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:10px;
+    margin-top:15px;
 }
-.field-value {
-    flex: 1;
-    border-bottom: 1px solid #000;
-    padding-bottom: 4px;
-    min-height: 18px;
+
+.vital-box{
+    display:flex;
+    align-items:center;
 }
-.small-label {
-    width: 48px;
-    margin-left: 16px;
+
+.vital-label{
+    width:50px;
+    padding:5px;
+    font-size:12px;
+    font-weight:bold;
+    text-align:center;
+    color:#000;
 }
-.diag-box {
-    border: 1px solid #d32f2f;
-    min-height: 56px;
-    padding: 8px;
-    margin-left: 4px;
-    width: 100%;
-    background-color: #ff9e9e;
+
+.bp{ background:#ffe96b; }
+.hr{ background:#ffe96b; }
+.wt{ background:#ffe96b; }
+.rr{ background:#ffe96b; }
+.temp{ background:#ffe96b; }
+.ht{ background:#ff7b7b; }
+
+.vital-input{
+    border:none;
+    border-bottom:1px solid #000;
+    flex:1;
+    margin-left:5px;
+    outline:none;
 }
-.section-title {
-    font-size: 12px;
-    font-weight: bold;
-    text-transform: uppercase;
-    background-color: #d32f2f;
-    color: #fff;
-    padding: 4px 8px;
-    display: inline-block;
-    margin-bottom: 10px;
+
+.diagnosis{
+    margin-top:15px;
 }
-.vitals-grid {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 8px;
-    margin-top: 14px;
+
+.diagnosis textarea{
+    width:100%;
+    height:60px;
+    resize:none;
+    border:1px solid #ccc;
+    padding:10px;
 }
-.vital-item {
-    border: 1px solid #d7a600;
-    padding: 6px;
-    min-height: 54px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    background-color: #fff3a6;
+
+.prescription-header{
+    margin-top:25px;
+    background:#ff6b6b;
+    color:white;
+    display:inline-block;
+    padding:5px 12px;
+    font-weight:bold;
 }
-.vital-item .label {
-    font-size: 10px;
-    font-weight: bold;
-    text-transform: uppercase;
+
+.rx-table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:10px;
 }
-.medicine-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 8px;
+
+.rx-table th{
+    background:#dff1ff;
+    padding:10px;
+    border:1px solid #ccc;
+    font-size:13px;
 }
-.medicine-table th,
-.medicine-table td {
-    border: 1px solid #000;
-    padding: 8px 6px;
-    vertical-align: top;
-    font-size: 11px;
+
+.rx-table td{
+    height:40px;
+    border:1px solid #ccc;
 }
-.medicine-table th {
-    background: #e8e8e8;
-    text-transform: uppercase;
+
+.signature{
+    margin-top:40px;
+    text-align:right;
 }
+
+.signature-line{
+    width:250px;
+    border-top:1px solid #000;
+    margin-left:auto;
+    padding-top:5px;
+    font-size:12px;
+}
+
+@media print{
+    body{
+        background:white;
+        padding:0;
+    }
+
+    .prescription{
+        border:none;
+        width:100%;
+    }
+}
+
 </style>
 </head>
+
 <body>
-<div class="page">
-    <div class="prescription">
-        <div class="top-section">
-            <div class="left-block">
-                <div class="field-row">
-                    <span class="field-label">Date</span>
-                    <span class="field-value">$today</span>
-                </div>
-                <div class="field-row">
-                    <span class="field-label">Name</span>
-                    <span class="field-value">$patient_name</span>
-                </div>
-                <div class="field-row">
-                    <span class="field-label">Age</span>
-                    <span class="field-value">$patient_age</span>
-                    <span class="field-label small-label">Sex</span>
-                    <span class="field-value" style="width: 70px;">$patient_sex</span>
-                </div>
-                <div class="field-row">
-                    <span class="field-label">CC</span>
-                    <span class="field-value">$cc</span>
-                </div>
-                <div class="field-row">
-                    <span class="field-label">HPI</span>
-                    <span class="field-value">$hpi</span>
-                </div>
-                <div class="field-row" style="align-items: flex-start;">
-                    <span class="field-label">Diagnosis</span>
-                    <span class="diag-box">$diagnosis</span>
-                </div>
-            </div>
-            <div class="right-block">
-                <div class="section-title">Medications</div>
-                <table class="medicine-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 16%;">Generic Name</th>
-                            <th style="width: 16%;">Brand Name</th>
-                            <th style="width: 14%;">Dose</th>
-                            <th style="width: 14%;">Amount</th>
-                            <th style="width: 16%;">Frequency</th>
-                            <th style="width: 16%;">Duration</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        $med_rows
-                    </tbody>
-                </table>
-            </div>
+
+<div class="prescription">
+
+    <div class="top-section">
+
+        <div class="left-info">
+
+            <label>DATE</label>
+            <input type="date" class="input-line">
+
+            <label>NAME</label>
+            <input type="text" class="input-line">
+
+            <label>AGE</label>
+            <input type="text" class="input-line">
+
+            <label>CC</label>
+            <input type="text" class="input-line">
+
         </div>
-        <div class="vitals-grid">
-            <div class="vital-item"><span class="label">BP</span><span class="value">$bp</span></div>
-            <div class="vital-item"><span class="label">HR</span><span class="value">$hr</span></div>
-            <div class="vital-item"><span class="label">RR</span><span class="value">$rr</span></div>
-            <div class="vital-item"><span class="label">Temp</span><span class="value">$temp</span></div>
-            <div class="vital-item"><span class="label">WT</span><span class="value">$wt</span></div>
+
+        <div style="width:50%;">
+
+            <div class="vitals">
+
+                <div class="vital-box">
+                    <div class="vital-label bp">BP</div>
+                    <input type="text" class="vital-input">
+                </div>
+
+                <div class="vital-box">
+                    <div class="vital-label rr">RR</div>
+                    <input type="text" class="vital-input">
+                </div>
+
+                <div class="vital-box">
+                    <div class="vital-label temp">TEMP</div>
+                    <input type="text" class="vital-input">
+                </div>
+
+                <div class="vital-box">
+                    <div class="vital-label hr">HR</div>
+                    <input type="text" class="vital-input">
+                </div>
+
+                <div class="vital-box">
+                    <div class="vital-label wt">WT</div>
+                    <input type="text" class="vital-input">
+                </div>
+
+                <div class="vital-box">
+                    <div class="vital-label ht">HT</div>
+                    <input type="text" class="vital-input">
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="diagnosis">
+        <label><strong>Diagnosis</strong></label>
+        <textarea></textarea>
+    </div>
+
+    <div class="prescription-header">
+        Prescription
+    </div>
+
+    <table class="rx-table">
+        <thead>
+            <tr>
+                <th>Generic Name</th>
+                <th>Brand Name</th>
+                <th>Dose</th>
+                <th>Amount</th>
+                <th>Frequency</th>
+                <th>Duration</th>
+            </tr>
+        </thead>
+
+        <tbody>
+
+            <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+
+            <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+
+            <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+
+            <tr>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+            </tr>
+
+        </tbody>
+
+    </table>
+
+    <div class="signature">
+        <div class="signature-line">
+            Doctor's Signature
         </div>
     </div>
+
 </div>
+
 </body>
 </html>
 HTML;
@@ -253,7 +370,7 @@ $dompdf->setPaper('A4', 'portrait');
 
 $dompdf->render();
 
-$dompdf->stream("prescription.pdf", [
+$dompdf->stream($patient_name . ".pdf", [
     "Attachment" => true
 ]);
 ?>
