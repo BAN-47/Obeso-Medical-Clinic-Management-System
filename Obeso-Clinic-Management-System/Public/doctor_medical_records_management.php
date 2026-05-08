@@ -18,7 +18,7 @@ $checkupObj = new Checkup($db);
 $medObj     = new Medication($db);
 $presObj    = new PrescribedMedication($db);
 
-/* ================= SAVE ALL (MEDICATION AND PRESCRIPTION) ================= */
+/* ================= SAVE ALL ================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
     try {
         $db->beginTransaction();
@@ -113,46 +113,97 @@ $checkupPage = max(1, (int)($_GET['checkup_page'] ?? 1));
 $checkupOffset = ($checkupPage - 1) * $checkupLimit;
 
 if (isset($_GET['patient_id'])) {
+
     $pid = (int)$_GET['patient_id'];
+
     $patientStmt = $db->prepare("SELECT * FROM patients WHERE patient_id = ?");
     $patientStmt->execute([$pid]);
     $patient = $patientStmt->fetch(PDO::FETCH_ASSOC);
 
-    // Fetch checkups with optional date filter and pagination
     if ($searchDate) {
-        $countCheckupStmt = $db->prepare("SELECT COUNT(*) FROM checkups WHERE patient_id = ? AND checkup_date = ?");
+
+        $countCheckupStmt = $db->prepare("
+            SELECT COUNT(*) 
+            FROM checkups 
+            WHERE patient_id = ?
+            AND (
+                diagnosis IS NOT NULL AND diagnosis != ''
+                AND history_present_illness IS NOT NULL AND history_present_illness != ''
+            )
+        ");
+
         $countCheckupStmt->execute([$pid, $searchDate]);
         $totalCheckups = $countCheckupStmt->fetchColumn();
 
-        $cstmt = $db->prepare("SELECT * FROM checkups WHERE patient_id = :pid AND checkup_date = :searchDate ORDER BY checkup_date DESC LIMIT :checkupLimit OFFSET :checkupOffset");
+        $cstmt = $db->prepare("
+            SELECT * 
+            FROM checkups 
+            WHERE patient_id = :pid
+            AND (
+                diagnosis IS NOT NULL AND diagnosis != ''
+                AND history_present_illness IS NOT NULL AND history_present_illness != ''
+            )
+            ORDER BY checkup_date DESC
+            LIMIT :checkupLimit OFFSET :checkupOffset
+        ");
+
         $cstmt->bindValue(':pid', $pid, PDO::PARAM_INT);
         $cstmt->bindValue(':searchDate', $searchDate, PDO::PARAM_STR);
         $cstmt->bindValue(':checkupLimit', $checkupLimit, PDO::PARAM_INT);
         $cstmt->bindValue(':checkupOffset', $checkupOffset, PDO::PARAM_INT);
         $cstmt->execute();
+
     } else {
-        $countCheckupStmt = $db->prepare("SELECT COUNT(*) FROM checkups WHERE patient_id = ?");
+
+        $countCheckupStmt = $db->prepare("
+            SELECT COUNT(*) 
+            FROM checkups 
+            WHERE patient_id = ?
+            AND (
+                diagnosis IS NOT NULL AND diagnosis != ''
+                OR history_present_illness IS NOT NULL AND history_present_illness != ''
+                OR doc_fullname IS NOT NULL AND doc_fullname != ''
+            )
+        ");
+
         $countCheckupStmt->execute([$pid]);
         $totalCheckups = $countCheckupStmt->fetchColumn();
 
-        $cstmt = $db->prepare("SELECT * FROM checkups WHERE patient_id = :pid ORDER BY checkup_date DESC LIMIT :checkupLimit OFFSET :checkupOffset");
+        $cstmt = $db->prepare("
+            SELECT * 
+            FROM checkups 
+            WHERE patient_id = :pid
+            AND (
+                diagnosis IS NOT NULL AND diagnosis != ''
+                OR history_present_illness IS NOT NULL AND history_present_illness != ''
+                OR doc_fullname IS NOT NULL AND doc_fullname != ''
+            )
+            ORDER BY checkup_date DESC
+            LIMIT :checkupLimit OFFSET :checkupOffset
+        ");
+
         $cstmt->bindValue(':pid', $pid, PDO::PARAM_INT);
         $cstmt->bindValue(':checkupLimit', $checkupLimit, PDO::PARAM_INT);
         $cstmt->bindValue(':checkupOffset', $checkupOffset, PDO::PARAM_INT);
         $cstmt->execute();
     }
+
     $checkups = $cstmt->fetchAll(PDO::FETCH_ASSOC);
+
     $totalCheckupPages = max(1, ceil($totalCheckups / $checkupLimit));
 
-    // Fetch medications for each checkup
     foreach ($checkups as $i => $c) {
+
         $mstmt = $db->prepare("
             SELECT pm.*, m.generic_name, m.brand_name
             FROM prescribed_medications pm
-            INNER JOIN medications m ON pm.medication_id = m.medication_id
+            INNER JOIN medications m 
+                ON pm.medication_id = m.medication_id
             WHERE pm.checkup_id = ?
         ");
+
         $mstmt->execute([$c['checkup_id']]);
+
         $checkups[$i]['medications'] = $mstmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }
@@ -168,7 +219,7 @@ if (isset($_GET['patient_id'])) {
 <link href="../Includes/sidebarStyle.css" rel="stylesheet">
 <style>
 .section-header { background:#062e6b; color:#fff; padding:12px 18px; border-radius:14px 14px 0 0; }
-.folder-card { transition:.2s; } 
+.folder-card { transition:.2s; }
 .folder-card:hover { transform: translateY(-4px); }
 .sb-sidenav .nav-link.active { background-color:#062e6bff !important; color:#fff !important; font-weight:600; }
 </style>
@@ -215,7 +266,7 @@ function addMedication() {
 <div class="col-md-4">
 <div class="card shadow folder-card">
 <div class="section-header">
-<i class="fa fa-folder me-2"></i><?= htmlspecialchars($p['full_name']) ?> 
+<i class="fa fa-folder me-2"></i><?= htmlspecialchars($p['full_name']) ?>
 </div>
 <div class="card-body">
 <p>
@@ -248,7 +299,6 @@ function addMedication() {
 </ul>
 </nav>
 
-
 <?php else: ?>
 <div class="d-flex justify-content-between mb-3">
     <a href="doctor_medical_records_management.php" class="btn btn-secondary">
@@ -264,7 +314,6 @@ function addMedication() {
 <div class="modal-dialog modal-xl modal-dialog-scrollable">
 <div class="modal-content">
 
-
 <div class="modal-header" style="background:#062e6b;">
     <h5 class="modal-title text-white" id="newRecordModalLabel">
         <i class="fa-solid fa-file-medical me-2"></i> Add New Record
@@ -276,7 +325,7 @@ function addMedication() {
 <form method="POST" id="newRecordForm">
 <input type="hidden" name="patient_id" value="<?= $patient['patient_id'] ?>">
 
-<!-- Patient Info (read-only) -->
+<!-- Patient Info (read-only) + Chief Complaint + Vitals -->
 <div class="card mb-4 shadow-sm">
 <div class="section-header"><i class="fa-solid fa-user me-2"></i> Patient Information</div>
 <div class="card-body row g-3">
@@ -291,10 +340,76 @@ function addMedication() {
     <div class="col-md-3"><label class="form-label text-muted small">Contact Person Age</label><input class="form-control" value="<?= htmlspecialchars($patient['contact_person_age']) ?>" readonly></div>
     <div class="col-md-3"><label class="form-label text-muted small">Religion</label><input class="form-control" value="<?= htmlspecialchars($patient['religion']) ?>" readonly></div>
     <div class="col-12"><label class="form-label text-muted small">Address</label><textarea class="form-control" readonly><?= htmlspecialchars($patient['address']) ?></textarea></div>
+
+    <!-- Chief Complaint (moved here from Checkup card) -->
+    <div class="col-12">
+        <label class="form-label text-muted small">Chief Complaint</label>
+        <textarea name="chief_complaint" class="form-control" placeholder="Chief Complaint" readonly><?= htmlspecialchars($c['chief_complaint'] ?? '') ?></textarea>
+    </div>
+
+    <!-- Vitals (moved here from Checkup card) -->
+    <div class="col-12">
+        <div class="row g-2">
+           <div class="col">
+    <label class="form-label text-muted small">BP</label>
+    <input
+        name="blood_pressure"
+        class="form-control text-center"
+        placeholder="BP"
+        readonly
+        value="<?= htmlspecialchars($c['blood_pressure'] ?? '') ?>"
+    >
+</div>
+
+<div class="col">
+    <label class="form-label text-muted small">RR</label>
+    <input
+        name="respiratory_rate"
+        class="form-control text-center"
+        placeholder="RR"
+        readonly
+        value="<?= htmlspecialchars($c['respiratory_rate'] ?? '') ?>"
+    >
+</div>
+
+<div class="col">
+    <label class="form-label text-muted small">WT</label>
+    <input
+        name="weight"
+        class="form-control text-center"
+        placeholder="WT"
+        readonly
+        value="<?= htmlspecialchars($c['weight'] ?? '') ?>"
+    >
+</div>
+
+<div class="col">
+    <label class="form-label text-muted small">HR</label>
+    <input
+        name="heart_rate"
+        class="form-control text-center"
+        placeholder="HR"
+        readonly
+        value="<?= htmlspecialchars($c['heart_rate'] ?? '') ?>"
+    >
+</div>
+
+<div class="col">
+    <label class="form-label text-muted small">TEMP</label>
+    <input
+        name="temperature"
+        class="form-control text-center"
+        placeholder="TEMP"
+        readonly
+        value="<?= htmlspecialchars($c['temperature'] ?? '') ?>"
+    >
+</div>
+        </div>
+    </div>
 </div>
 </div>
 
-<!-- Checkup -->
+<!-- Checkup (no more Chief Complaint or Vitals here) -->
 <div class="card mb-4 shadow-sm">
 <div class="section-header"><i class="fa-solid fa-stethoscope me-2"></i> Checkup</div>
 <div class="card-body">
@@ -302,15 +417,7 @@ function addMedication() {
         <div class="col-md-4"><label class="form-label text-muted small">Checkup Date</label><input type="date" name="checkup_date" class="form-control" required></div>
         <div class="col-md-8"><label class="form-label text-muted small">Diagnosis</label><input name="diagnosis" class="form-control" placeholder="Diagnosis"></div>
     </div>
-    <div class="mt-3"><label class="form-label text-muted small">Chief Complaint</label><textarea name="chief_complaint" class="form-control" placeholder="Chief Complaint"></textarea></div>
     <div class="mt-3"><label class="form-label text-muted small">History of Present Illness</label><textarea name="history_present_illness" class="form-control" placeholder="History of Present Illness"></textarea></div>
-    <div class="row g-2 mt-3">
-        <div class="col"><label class="form-label text-muted small">BP</label><input name="blood_pressure" class="form-control" placeholder="BP"></div>
-        <div class="col"><label class="form-label text-muted small">RR</label><input name="respiratory_rate" class="form-control" placeholder="RR"></div>
-        <div class="col"><label class="form-label text-muted small">WT</label><input name="weight" class="form-control" placeholder="WT"></div>
-        <div class="col"><label class="form-label text-muted small">HR</label><input name="heart_rate" class="form-control" placeholder="HR"></div>
-        <div class="col"><label class="form-label text-muted small">TEMP</label><input name="temperature" class="form-control" placeholder="TEMP"></div>
-    </div>
     <div class="row g-3 mt-3">
         <div class="col-md-6"><label class="form-label text-muted small">Doctor ID</label><input name="doc_id" class="form-control" placeholder="Doctor ID" required></div>
         <div class="col-md-6"><label class="form-label text-muted small">Doctor Full Name</label><input name="doc_fullname" class="form-control" placeholder="Doctor Full Name" required></div>
@@ -343,6 +450,7 @@ function addMedication() {
 </div>
 </div>
 
+<!-- ================= PATIENT INFO DISPLAY ================= -->
 <div class="card shadow mb-4">
 <div class="section-header">
 <i class="fa fa-user me-2"></i> Patient Information
@@ -354,20 +462,25 @@ function addMedication() {
 <div class="col-md-2"><strong>Sex:</strong> <?= $patient['sex'] ?></div>
 <div class="col-md-4"><strong>Contact:</strong> <?= $patient['contact_number'] ?></div>
 </div>
-
 <div class="row mb-2">
 <div class="col-md-4"><strong>Civil Status:</strong> <?= htmlspecialchars($patient['civil_status']) ?></div>
 <div class="col-md-2"><strong>Religion:</strong> <?= htmlspecialchars($patient['religion']) ?></div>
 <div class="col-md-3"><strong>Occupation:</strong> <?= htmlspecialchars($patient['occupation']) ?></div>
 </div>
-
 <div class="row mb-2">
 <div class="col-md-4"><strong>Contact Person:</strong> <?= htmlspecialchars($patient['contact_person']) ?></div>
 <div class="col-md-2"><strong>Contact Person Age:</strong> <?= htmlspecialchars($patient['contact_person_age']) ?></div>
 </div>
-
 <div class="mt-2">
 <strong>Address:</strong> <?= htmlspecialchars($patient['address']) ?>
+</div>
+<div class="mt-2"><strong>Chief Complaint:</strong> <?= htmlspecialchars($c['chief_complaint'] ?? '') ?></div>
+<div class="row mb-2">
+<div class="col-md-2"><strong>BP:</strong> <?= htmlspecialchars($c['blood_pressure'] ?? '') ?></div>
+<div class="col-md-2"><strong>RR:</strong> <?= htmlspecialchars($c['respiratory_rate'] ?? '') ?></div>
+<div class="col-md-2"><strong>WT:</strong> <?= htmlspecialchars($c['weight'] ?? '') ?></div>
+<div class="col-md-2"><strong>HR:</strong> <?= htmlspecialchars($c['heart_rate'] ?? '') ?></div>
+<div class="col-md-2"><strong>TEMP:</strong> <?= htmlspecialchars($c['temperature'] ?? '') ?></div>
 </div>
 </div>
 </div>
@@ -383,8 +496,16 @@ function addMedication() {
 </div>
 </form>
 
-<?php if ($checkups): ?>
-<?php foreach ($checkups as $c): ?>
+<?php
+$validCheckups = array_filter($checkups, function($checkup) {
+    return !empty($checkup['diagnosis']) ||
+           !empty($checkup['chief_complaint']) ||
+           !empty($checkup['history_present_illness']);
+});
+?>
+
+<?php if (!empty($validCheckups)): ?>
+<?php foreach ($validCheckups as $c): ?>
 <div class="card shadow mb-4">
 <div class="section-header">
 <i class="fa fa-stethoscope me-2"></i>
@@ -396,6 +517,13 @@ Checkup — <?= $c['checkup_date'] ?> (Doctor: <?= htmlspecialchars($c['doc_full
 <p><strong>HPI:</strong> <?= htmlspecialchars($c['history_present_illness']) ?></p>
 
 <hr>
+<div class="row text-center">
+<div class="col">BP<br><strong><?= $c['blood_pressure'] ?></strong></div>
+<div class="col">RR<br><strong><?= $c['respiratory_rate'] ?></strong></div>
+<div class="col">WT<br><strong><?= $c['weight'] ?></strong></div>
+<div class="col">HR<br><strong><?= $c['heart_rate'] ?></strong></div>
+<div class="col">TEMP<br><strong><?= $c['temperature'] ?></strong></div>
+</div>
 
 <?php if (!empty($c['medications'])): ?>
 <hr>
@@ -422,13 +550,11 @@ Checkup — <?= $c['checkup_date'] ?> (Doctor: <?= htmlspecialchars($c['doc_full
 <?php endif; ?>
 
 <div class="mt-3">
-<a href="export_prescription.php?checkup_id=<?= $c['checkup_id'] ?>" 
-   class="btn btn-danger">
+<a href="export_prescription.php?checkup_id=<?= $c['checkup_id'] ?>" class="btn btn-danger">
    <i class="fa fa-file-pdf"></i> Export Prescription PDF
 </a>
 </div>
 
-<!-- ================= CREATE FOLLOW UP CHECKUP BUTTON (PER CHECKUP) ================= -->
 <div class="mt-3">
 <a href="doctor_followup_checkup.php?patient_id=<?= $patient['patient_id'] ?>&checkup_id=<?= $c['checkup_id'] ?>" class="btn btn-success btn-sm">
 <i class="fa fa-plus"></i> Create a Follow Up Checkup

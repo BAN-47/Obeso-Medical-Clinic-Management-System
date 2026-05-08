@@ -75,6 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
     try {
         $db->beginTransaction();
 
+        // 1. Check slot limit
         $slotCheck = $db->prepare("SELECT COUNT(*) FROM queue WHERE DATE(created_at) = ?");
         $slotCheck->execute([date('Y-m-d')]);
         if ((int)$slotCheck->fetchColumn() >= 50) {
@@ -83,7 +84,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
             exit();
         }
 
-        $stmt = $db->prepare("SELECT patient_id FROM patients WHERE full_name=? AND birthday=? LIMIT 1");
+        // 2. Find or create patient
+        $stmt = $db->prepare("SELECT patient_id FROM patients WHERE full_name = ? AND birthday = ? LIMIT 1");
         $stmt->execute([$_POST['full_name'], $_POST['birthday']]);
         $existingPatient = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -92,47 +94,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
         } else {
             $stmt = $db->prepare(
                 "INSERT INTO patients
-                (full_name,address,birthday,age,sex,civil_status,religion,occupation,
-                 contact_person,contact_person_age,contact_number)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+                 (full_name, address, birthday, age, sex, civil_status, religion, occupation,
+                  contact_person, contact_person_age, contact_number)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
             $stmt->execute([
                 $_POST['full_name'],
-                $_POST['address'],
+                $_POST['address']            ?? null,
                 $_POST['birthday'],
                 $_POST['age'],
                 $_POST['sex'],
-                $_POST['civil_status'] ?? null,
-                $_POST['religion'] ?? null,
-                $_POST['occupation'] ?? null,
-                $_POST['contact_person'] ?? null,
+                $_POST['civil_status']       ?? null,
+                $_POST['religion']           ?? null,
+                $_POST['occupation']         ?? null,
+                $_POST['contact_person']     ?? null,
                 $_POST['contact_person_age'] ?? null,
-                $_POST['contact_number']
+                $_POST['contact_number'],
             ]);
             $patient_id = $db->lastInsertId();
         }
 
-        $db->commit();
-
-        $verify = $db->prepare("SELECT patient_id FROM patients WHERE patient_id = ?");
-        $verify->execute([$patient_id]);
-        $exists = $verify->fetch();
-
-        if (!$exists) {
-            echo json_encode(['success' => false, 'error' => 'DEBUG: patient_id=' . $patient_id . ' not found in patients table after commit.']);
-            exit();
-        }
-
+       /* ================= STEP 3: SAVE TO CHECKUPS & QUEUE ================= */
         $today = date('Y-m-d');
+        
+        // 1. Generate the Queue Number
         $qStmt = $db->prepare("SELECT COUNT(*) FROM queue WHERE DATE(created_at) = ?");
         $qStmt->execute([$today]);
-        $qCount = (int)$qStmt->fetchColumn() + 1;
+        $qCount      = (int)$qStmt->fetchColumn() + 1;
         $queueNumber = 'Q-' . str_pad($qCount, 3, '0', STR_PAD_LEFT);
 
-        $qInsert = $db->prepare("INSERT INTO queue (patient_id, queue_number) VALUES (?, ?)");
-        $qInsert->execute([$patient_id, $queueNumber]);
+        // 2. Insert vitals into CHECKUPS table (where they belong)
+        // Note: doc_id 1 is used as a placeholder because it is NOT NULL in your SQL
+        $cInsert = $db->prepare(
+            "INSERT INTO checkups 
+             (patient_id, doc_id, doc_fullname, checkup_date, chief_complaint, 
+              blood_pressure, respiratory_rate, weight, heart_rate, temperature) 
+             VALUES (?, 1, 'Pending Assignment', ?, ?, ?, ?, ?, ?, ?)"
+        );
 
-        echo json_encode(['success' => true, 'patient_id' => $patient_id, 'queue_number' => $queueNumber]);
+        $cInsert->execute([
+            $patient_id,
+            $today,
+            $_POST['chief_complaint']    ?? null,
+            $_POST['blood_pressure']     ?? null,
+            $_POST['respiratory_rate']   ?? null,
+            $_POST['weight']             ?? null,
+            $_POST['heart_rate']         ?? null,
+            $_POST['temperature']        ?? null
+        ]);
+
+        // 3. Insert into QUEUE table (only using columns that actually exist there)
+        $qInsert = $db->prepare(
+            "INSERT INTO queue (patient_id, queue_number) VALUES (?, ?)"
+        );
+
+        $qInsert->execute([
+            $patient_id,
+            $queueNumber
+        ]);
+
+        $db->commit();
+
+        echo json_encode([
+            'success'      => true,
+            'patient_id'   => $patient_id,
+            'queue_number' => $queueNumber,
+        ]);
         exit();
 
     } catch (Exception $e) {
@@ -438,7 +465,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
             </div>
             <div class="card-body row g-3">
                 <div class="col-md-6"><input name="full_name" class="form-control" placeholder="Full Name" required></div>
-                <div class="col-md-3"><input type="date" name="birthday" class="form-control" required></div>
+                <div class="col-md-3"><input type="date" name="birthday" class="form-control" placeholder="Birthday" required></div>
                 <div class="col-md-3"><input type="number" name="age" class="form-control" placeholder="Age" required></div>
 
                 <div class="col-md-3">
@@ -462,30 +489,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
 
                 <div class="col-12"><textarea name="address" class="form-control" placeholder="Address"></textarea></div>
 
-                <!-- Vitals -->
-                <div class="col-12">
-                    <div class="row g-2">
-                        <div class="col">
-                            <label class="form-label text-muted small">BP</label>
-                            <input name="blood_pressure" class="form-control text-center" placeholder="BP">
-                        </div>
-                        <div class="col">
-                            <label class="form-label text-muted small">RR</label>
-                            <input name="respiratory_rate" class="form-control text-center" placeholder="RR">
-                        </div>
-                        <div class="col">
-                            <label class="form-label text-muted small">WT</label>
-                            <input name="weight" class="form-control text-center" placeholder="WT">
-                        </div>
-                        <div class="col">
-                            <label class="form-label text-muted small">HR</label>
-                            <input name="heart_rate" class="form-control text-center" placeholder="HR">
-                        </div>
-                        <div class="col">
-                            <label class="form-label text-muted small">TEMP</label>
-                            <input name="temperature" class="form-control text-center" placeholder="TEMP">
-                        </div>
-                    </div>
+                <div class="mt-3"><label class="form-label text-muted small">Chief Complaint</label><textarea name="chief_complaint" class="form-control" placeholder="Chief Complaint"></textarea></div>
+
+                <div class="row g-2 mt-3">
+                    <div class="col"><label class="form-label text-muted small">BP</label><input name="blood_pressure" class="form-control" placeholder="BP"></div>
+                    <div class="col"><label class="form-label text-muted small">RR</label><input name="respiratory_rate" class="form-control" placeholder="RR"></div>
+                    <div class="col"><label class="form-label text-muted small">WT</label><input name="weight" class="form-control" placeholder="WT"></div>
+                    <div class="col"><label class="form-label text-muted small">HR</label><input name="heart_rate" class="form-control" placeholder="HR"></div>
+                    <div class="col"><label class="form-label text-muted small">TEMP</label><input name="temperature" class="form-control" placeholder="TEMP"></div>
                 </div>
 
             </div>
