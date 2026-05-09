@@ -473,7 +473,7 @@ tr.row-done td { opacity: .45; }
                     <div class="now-serving-banner empty">
                         <i class="fa-regular fa-face-meh fa-lg me-2"></i>
                         No patient is currently being called. Press
-                        <strong>&nbsp;Call Next Patient&nbsp;</strong> above to begin.
+                        <strong>Call Next Patient</strong> above to begin.
                     </div>
                 </div>
             </div>
@@ -569,7 +569,7 @@ function renderNowServing(inprog) {
     if (!inprog) {
         box.innerHTML = `<div class="now-serving-banner empty">
             <i class="fa-regular fa-face-meh fa-lg me-2"></i>
-            No patient is currently being called. Press <strong>&nbsp;Call Next Patient&nbsp;</strong> above to begin.
+            No patient is currently being called. Press<strong>Call Next Patient</strong>above to begin.
         </div>`;
         return;
     }
