@@ -352,7 +352,7 @@ body {
 
 <!-- SIGNATURE -->
 <div class="sig-wrap">
-    <div class="sig-line">Doctor's Signature wwewewe</div>
+    <div class="sig-line">Doctor's Signature</div>
 </div>
 
 </body>
