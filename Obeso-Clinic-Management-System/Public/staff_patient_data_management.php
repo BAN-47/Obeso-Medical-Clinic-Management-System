@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['queue_old_patient']))
         }
 
         $slotCheck = $db->prepare("SELECT COUNT(*) FROM queue WHERE DATE(created_at) = ?");
-        $slotCheck->execute([date('Y-m-d')]);
+        $slotCheck->execute([$today]);
         if ((int)$slotCheck->fetchColumn() >= 50) {
             echo json_encode(['success' => false, 'error' => 'Sorry, the 50-patient limit for today has been reached.']);
             exit();
@@ -57,6 +57,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['queue_old_patient']))
         $qStmt->execute([$today]);
         $qCount = (int)$qStmt->fetchColumn() + 1;
         $queueNumber = 'Q-' . str_pad($qCount, 3, '0', STR_PAD_LEFT);
+
+        // INSERT PENDING CHECKUP WITH VITALS
+        $cInsert = $db->prepare(
+            "INSERT INTO checkups 
+             (patient_id, doc_id, doc_fullname, checkup_date, chief_complaint,
+              blood_pressure, respiratory_rate, weight, heart_rate, temperature, status)
+             VALUES (?, 1, 'Pending Assignment', ?, ?, ?, ?, ?, ?, ?, 'pending')"
+        );
+        $cInsert->execute([
+            $patient_id,
+            $today,
+            !empty($_POST['chief_complaint'])   ? $_POST['chief_complaint']        : null,
+            !empty($_POST['blood_pressure'])    ? $_POST['blood_pressure']         : null,
+            !empty($_POST['respiratory_rate'])  ? (int)$_POST['respiratory_rate']  : null,
+            !empty($_POST['weight'])            ? $_POST['weight']                 : null,
+            !empty($_POST['heart_rate'])        ? (int)$_POST['heart_rate']        : null,
+            !empty($_POST['temperature'])       ? $_POST['temperature']            : null,
+        ]);
 
         $qInsert = $db->prepare("INSERT INTO queue (patient_id, queue_number) VALUES (?, ?)");
         $qInsert->execute([$patient_id, $queueNumber]);
@@ -484,16 +502,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
                 <div class="col-md-3"><input type="number" name="contact_person_age" class="form-control" placeholder="Contact Person Age"></div>
                 <div class="col-md-3"><input name="religion" class="form-control" placeholder="Religion"></div>
 
-                <div class="col-12"><textarea name="address" class="form-control" placeholder="Address"></textarea></div>
+                <div class="col-12"><textarea name="address" class="form-control" placeholder="Address" required></textarea></div>
 
-                <div class="mt-3"><label class="form-label text-muted small">Chief Complaint</label><textarea name="chief_complaint" class="form-control" placeholder="Chief Complaint"></textarea></div>
+                <div class="mt-3"><label class="form-label text-muted small">Chief Complaint</label><textarea name="chief_complaint" class="form-control" placeholder="Chief Complaint" required></textarea></div>
 
                 <div class="row g-2 mt-3">
-                    <div class="col"><label class="form-label text-muted small">BP</label><input name="blood_pressure" class="form-control" placeholder="BP"></div>
-                    <div class="col"><label class="form-label text-muted small">RR</label><input name="respiratory_rate" class="form-control" placeholder="RR"></div>
-                    <div class="col"><label class="form-label text-muted small">WT</label><input name="weight" class="form-control" placeholder="WT"></div>
-                    <div class="col"><label class="form-label text-muted small">HR</label><input name="heart_rate" class="form-control" placeholder="HR"></div>
-                    <div class="col"><label class="form-label text-muted small">TEMP</label><input name="temperature" class="form-control" placeholder="TEMP"></div>
+                    <div class="col"><label class="form-label text-muted small">BP</label><input name="blood_pressure" class="form-control" placeholder="BP" required></div>
+                    <div class="col"><label class="form-label text-muted small">RR</label><input name="respiratory_rate" class="form-control" placeholder="RR" required></div>
+                    <div class="col"><label class="form-label text-muted small">WT</label><input name="weight" class="form-control" placeholder="WT" required></div>
+                    <div class="col"><label class="form-label text-muted small">HR</label><input name="heart_rate" class="form-control" placeholder="HR" required></div>
+                    <div class="col"><label class="form-label text-muted small">TEMP</label><input name="temperature" class="form-control" placeholder="TEMP" required></div>
                 </div>
 
             </div>
@@ -570,6 +588,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
                 <div class="pi-field"></div>
                 <div class="pi-field pi-full">
                     <span class="pi-lbl">Address: </span><span class="pi-val" id="pi_address">—</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="px-4 pb-3">
+            <div class="mb-3">
+                <label class="form-label text-muted small fw-semibold">Chief Complaint</label>
+                <textarea id="old_chief_complaint" class="form-control" placeholder="Chief Complaint" rows="2" required></textarea>
+            </div>
+            <div class="row g-2">
+                <div class="col">
+                    <label class="form-label text-muted small">BP</label>
+                    <input id="old_blood_pressure" class="form-control" placeholder="BP" required>
+                </div>
+                <div class="col">
+                    <label class="form-label text-muted small">RR</label>
+                    <input id="old_respiratory_rate" class="form-control" placeholder="RR" required >
+                </div>
+                <div class="col">
+                    <label class="form-label text-muted small">WT</label>
+                    <input id="old_weight" class="form-control" placeholder="WT" required>
+                </div>
+                <div class="col">
+                    <label class="form-label text-muted small">HR</label>
+                    <input id="old_heart_rate" class="form-control" placeholder="HR" required>
+                </div>
+                <div class="col">
+                    <label class="form-label text-muted small">TEMP</label>
+                    <input id="old_temperature" class="form-control" placeholder="TEMP" required>
                 </div>
             </div>
         </div>
@@ -716,6 +763,12 @@ function confirmQueue() {
         const fd = new FormData();
         fd.append('queue_old_patient', '1');
         fd.append('patient_id', window._selectedPatientId);
+        fd.append('chief_complaint',   document.getElementById('old_chief_complaint').value);
+        fd.append('blood_pressure',    document.getElementById('old_blood_pressure').value);
+        fd.append('respiratory_rate',  document.getElementById('old_respiratory_rate').value);
+        fd.append('weight',            document.getElementById('old_weight').value);
+        fd.append('heart_rate',        document.getElementById('old_heart_rate').value);
+        fd.append('temperature',       document.getElementById('old_temperature').value);
 
         fetch(window.location.pathname, { method: 'POST', body: fd })
             .then(r => r.json())
@@ -745,6 +798,10 @@ function showQueueModal(queueNumber) {
 
 function closeQueueModal() {
     document.getElementById('queueModal').classList.remove('show');
+    ['old_chief_complaint','old_blood_pressure','old_respiratory_rate',
+     'old_weight','old_heart_rate','old_temperature'].forEach(id => {
+        document.getElementById(id).value = '';
+    });
 }
 
 document.addEventListener('click', e => {

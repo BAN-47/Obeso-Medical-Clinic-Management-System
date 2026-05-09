@@ -23,12 +23,6 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                 Patient Data
             </a>
 
-            <a class="nav-link <?= $currentPage == 'staff_medical_records_management.php' ? 'active' : '' ?>"
-               href="staff_medical_records_management.php">
-                <div class="sb-nav-link-icon"><i class="fa-solid fa-hospital-user"></i></div>
-                Medical Records
-            </a>
-
             <a class="nav-link <?= $currentPage == 'staff_billing.php' ? 'active' : '' ?>"
                href="staff_billing.php">
                 <div class="sb-nav-link-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
