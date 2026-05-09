@@ -40,6 +40,11 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                 <div class="sb-nav-link-icon"><i class="fa-solid fa-hands-helping"></i></div>
                 Insights
             </a>
+            <a class="nav-link <?= $currentPage == 'staff_queue_management.php' ? 'active' : '' ?>"
+               href="staff_queue_management.php">
+                <div class="sb-nav-link-icon"><i class="fa-solid fa-hands-helping"></i></div>
+                Queue Management
+            </a>
         </div>
     </div>
 
