@@ -3,7 +3,7 @@
           private $host = "localhost";
           private $dbname = "obeso_clinic_database";
           private $username = "root";
-          private $password = "";
+          private $password = "dealwiththeletters12";
           private $conn;
 
           public function connect() {
