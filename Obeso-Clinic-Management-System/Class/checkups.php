@@ -52,14 +52,14 @@ class Checkup {
 
         $sql = "INSERT INTO {$this->table} 
                 (patient_id, checkup_date, doc_id, doc_fullname,
-                 chief_complaint, history_present_illness, diagnosis,
-                 blood_pressure, respiratory_rate, weight,
-                 heart_rate, temperature)
+                chief_complaint, history_present_illness, diagnosis,
+                blood_pressure, respiratory_rate, weight,
+                heart_rate, temperature, status)
                 VALUES
                 (:patient_id, :checkup_date, :doc_id, :doc_fullname,
-                 :chief_complaint, :history_present_illness, :diagnosis,
-                 :blood_pressure, :respiratory_rate, :weight,
-                 :heart_rate, :temperature)";
+                :chief_complaint, :history_present_illness, :diagnosis,
+                :blood_pressure, :respiratory_rate, :weight,
+                :heart_rate, :temperature, 'completed')";
 
         $stmt = $this->conn->prepare($sql);
 

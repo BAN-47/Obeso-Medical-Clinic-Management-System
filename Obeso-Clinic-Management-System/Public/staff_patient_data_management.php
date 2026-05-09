@@ -123,31 +123,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
         $qCount      = (int)$qStmt->fetchColumn() + 1;
         $queueNumber = 'Q-' . str_pad($qCount, 3, '0', STR_PAD_LEFT);
 
-        // 2. Insert vitals into CHECKUPS table (where they belong)
-        // Note: doc_id 1 is used as a placeholder because it is NOT NULL in your SQL
+        // 2. Insert vitals into checkups as pending (doctor will complete later)
         $cInsert = $db->prepare(
             "INSERT INTO checkups 
              (patient_id, doc_id, doc_fullname, checkup_date, chief_complaint, 
-              blood_pressure, respiratory_rate, weight, heart_rate, temperature) 
-             VALUES (?, 1, 'Pending Assignment', ?, ?, ?, ?, ?, ?, ?)"
+              blood_pressure, respiratory_rate, weight, heart_rate, temperature, status) 
+             VALUES (?, 1, 'Pending Assignment', ?, ?, ?, ?, ?, ?, ?, 'pending')"
         );
-
         $cInsert->execute([
             $patient_id,
             $today,
-            $_POST['chief_complaint']    ?? null,
-            $_POST['blood_pressure']     ?? null,
-            $_POST['respiratory_rate']   ?? null,
-            $_POST['weight']             ?? null,
-            $_POST['heart_rate']         ?? null,
-            $_POST['temperature']        ?? null
+            !empty($_POST['chief_complaint']) ? $_POST['chief_complaint'] : null,
+            !empty($_POST['blood_pressure']) ? $_POST['blood_pressure'] : null,
+            !empty($_POST['respiratory_rate']) ? (int)$_POST['respiratory_rate'] : null,
+            !empty($_POST['weight']) ? $_POST['weight'] : null,
+            !empty($_POST['heart_rate']) ? (int)$_POST['heart_rate'] : null,
+            !empty($_POST['temperature']) ? $_POST['temperature'] : null,
         ]);
 
-        // 3. Insert into QUEUE table (only using columns that actually exist there)
+        // 3. Insert into QUEUE table
         $qInsert = $db->prepare(
             "INSERT INTO queue (patient_id, queue_number) VALUES (?, ?)"
         );
-
         $qInsert->execute([
             $patient_id,
             $queueNumber

@@ -40,15 +40,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
             $patient_id,
             $_POST['checkup_date'],
             $_POST['doc_id'] ?? null,
-            $_POST['chief_complaint'] ?? null,
-            $_POST['history_present_illness'] ?? null,
-            $_POST['diagnosis'] ?? null,
-            $_POST['blood_pressure'] ?? null,
-            $_POST['respiratory_rate'] ?? null,
-            $_POST['weight'] ?? null,
-            $_POST['heart_rate'] ?? null,
-            $_POST['temperature'] ?? null,
-            $_POST['doc_fullname'] ?? null
+            !empty($_POST['chief_complaint']) ? $_POST['chief_complaint'] : null,
+            !empty($_POST['history_present_illness']) ? $_POST['history_present_illness'] : null,
+            !empty($_POST['diagnosis']) ? $_POST['diagnosis'] : null,
+            !empty($_POST['blood_pressure']) ? $_POST['blood_pressure'] : null,
+            !empty($_POST['respiratory_rate']) ? (int)$_POST['respiratory_rate'] : null,
+            !empty($_POST['weight']) ? $_POST['weight'] : null,
+            !empty($_POST['heart_rate']) ? (int)$_POST['heart_rate'] : null,
+            !empty($_POST['temperature']) ? $_POST['temperature'] : null,
+            !empty($_POST['doc_fullname']) ? $_POST['doc_fullname'] : null
         );
 
         if (!empty($_POST['generic_name'])) {
@@ -120,33 +120,17 @@ if (isset($_GET['patient_id'])) {
     $patientStmt->execute([$pid]);
     $patient = $patientStmt->fetch(PDO::FETCH_ASSOC);
 
+    $pendingStmt = $db->prepare("SELECT * FROM checkups WHERE patient_id = ? AND status = 'pending' ORDER BY checkup_id DESC LIMIT 1");
+    $pendingStmt->execute([$pid]);
+    $pendingCheckup = $pendingStmt->fetch(PDO::FETCH_ASSOC);
+
     if ($searchDate) {
 
-        $countCheckupStmt = $db->prepare("
-            SELECT COUNT(*) 
-            FROM checkups 
-            WHERE patient_id = ?
-            AND (
-                diagnosis IS NOT NULL AND diagnosis != ''
-                AND history_present_illness IS NOT NULL AND history_present_illness != ''
-            )
-        ");
-
+        $countCheckupStmt = $db->prepare("SELECT COUNT(*) FROM checkups WHERE patient_id = ? AND checkup_date = ? AND status = 'completed'");
         $countCheckupStmt->execute([$pid, $searchDate]);
         $totalCheckups = $countCheckupStmt->fetchColumn();
 
-        $cstmt = $db->prepare("
-            SELECT * 
-            FROM checkups 
-            WHERE patient_id = :pid
-            AND (
-                diagnosis IS NOT NULL AND diagnosis != ''
-                AND history_present_illness IS NOT NULL AND history_present_illness != ''
-            )
-            ORDER BY checkup_date DESC
-            LIMIT :checkupLimit OFFSET :checkupOffset
-        ");
-
+        $cstmt = $db->prepare("SELECT * FROM checkups WHERE patient_id = :pid AND checkup_date = :searchDate AND status = 'completed' ORDER BY checkup_date DESC LIMIT :checkupLimit OFFSET :checkupOffset");
         $cstmt->bindValue(':pid', $pid, PDO::PARAM_INT);
         $cstmt->bindValue(':searchDate', $searchDate, PDO::PARAM_STR);
         $cstmt->bindValue(':checkupLimit', $checkupLimit, PDO::PARAM_INT);
@@ -155,32 +139,11 @@ if (isset($_GET['patient_id'])) {
 
     } else {
 
-        $countCheckupStmt = $db->prepare("
-            SELECT COUNT(*) 
-            FROM checkups 
-            WHERE patient_id = ?
-            AND (
-                diagnosis IS NOT NULL AND diagnosis != ''
-                OR history_present_illness IS NOT NULL AND history_present_illness != ''
-                OR doc_fullname IS NOT NULL AND doc_fullname != ''
-            )
-        ");
-
+        $countCheckupStmt = $db->prepare("SELECT COUNT(*) FROM checkups WHERE patient_id = ? AND status = 'completed'");
         $countCheckupStmt->execute([$pid]);
         $totalCheckups = $countCheckupStmt->fetchColumn();
 
-        $cstmt = $db->prepare("
-            SELECT * 
-            FROM checkups 
-            WHERE patient_id = :pid
-            AND (
-                diagnosis IS NOT NULL AND diagnosis != ''
-                OR history_present_illness IS NOT NULL AND history_present_illness != ''
-                OR doc_fullname IS NOT NULL AND doc_fullname != ''
-            )
-            ORDER BY checkup_date DESC
-            LIMIT :checkupLimit OFFSET :checkupOffset
-        ");
+        $cstmt = $db->prepare("SELECT * FROM checkups WHERE patient_id = :pid AND status = 'completed' ORDER BY checkup_date DESC LIMIT :checkupLimit OFFSET :checkupOffset");
 
         $cstmt->bindValue(':pid', $pid, PDO::PARAM_INT);
         $cstmt->bindValue(':checkupLimit', $checkupLimit, PDO::PARAM_INT);
@@ -248,6 +211,9 @@ function addMedication() {
 <div id="layoutSidenav_nav"><?php include "../Includes/doctorSidebar.php"; ?></div>
 <div id="layoutSidenav_content">
 <main class="container-fluid px-4 py-4">
+<?php if (!empty($error)): ?>
+<div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
+<?php endif; ?>
 
 <!-- ================= PATIENT SEARCH ================= -->
 <form class="row g-2 mb-4">
@@ -344,7 +310,7 @@ function addMedication() {
     <!-- Chief Complaint (moved here from Checkup card) -->
     <div class="col-12">
         <label class="form-label text-muted small">Chief Complaint</label>
-        <textarea name="chief_complaint" class="form-control" placeholder="Chief Complaint" readonly><?= htmlspecialchars($c['chief_complaint'] ?? '') ?></textarea>
+        <textarea name="chief_complaint" class="form-control" placeholder="Chief Complaint" readonly><?= htmlspecialchars($pendingCheckup['chief_complaint'] ?? '') ?></textarea>
     </div>
 
     <!-- Vitals (moved here from Checkup card) -->
@@ -357,7 +323,7 @@ function addMedication() {
         class="form-control text-center"
         placeholder="BP"
         readonly
-        value="<?= htmlspecialchars($c['blood_pressure'] ?? '') ?>"
+        value="<?= htmlspecialchars($pendingCheckup['blood_pressure'] ?? '') ?>"
     >
 </div>
 
@@ -368,7 +334,7 @@ function addMedication() {
         class="form-control text-center"
         placeholder="RR"
         readonly
-        value="<?= htmlspecialchars($c['respiratory_rate'] ?? '') ?>"
+        value="<?= htmlspecialchars($pendingCheckup['respiratory_rate'] ?? '') ?>"
     >
 </div>
 
@@ -379,7 +345,7 @@ function addMedication() {
         class="form-control text-center"
         placeholder="WT"
         readonly
-        value="<?= htmlspecialchars($c['weight'] ?? '') ?>"
+        value="<?= htmlspecialchars($pendingCheckup['weight'] ?? '') ?>"
     >
 </div>
 
@@ -390,7 +356,7 @@ function addMedication() {
         class="form-control text-center"
         placeholder="HR"
         readonly
-        value="<?= htmlspecialchars($c['heart_rate'] ?? '') ?>"
+        value="<?= htmlspecialchars($pendingCheckup['heart_rate'] ?? '') ?>"
     >
 </div>
 
@@ -401,7 +367,7 @@ function addMedication() {
         class="form-control text-center"
         placeholder="TEMP"
         readonly
-        value="<?= htmlspecialchars($c['temperature'] ?? '') ?>"
+        value="<?= htmlspecialchars($pendingCheckup['temperature'] ?? '') ?>"
     >
 </div>
         </div>
@@ -474,13 +440,13 @@ function addMedication() {
 <div class="mt-2">
 <strong>Address:</strong> <?= htmlspecialchars($patient['address']) ?>
 </div>
-<div class="mt-2"><strong>Chief Complaint:</strong> <?= htmlspecialchars($c['chief_complaint'] ?? '') ?></div>
+<div class="mt-2"><strong>Chief Complaint:</strong> <?= htmlspecialchars($pendingCheckup['chief_complaint'] ?? '') ?></div>
 <div class="row mb-2">
-<div class="col-md-2"><strong>BP:</strong> <?= htmlspecialchars($c['blood_pressure'] ?? '') ?></div>
-<div class="col-md-2"><strong>RR:</strong> <?= htmlspecialchars($c['respiratory_rate'] ?? '') ?></div>
-<div class="col-md-2"><strong>WT:</strong> <?= htmlspecialchars($c['weight'] ?? '') ?></div>
-<div class="col-md-2"><strong>HR:</strong> <?= htmlspecialchars($c['heart_rate'] ?? '') ?></div>
-<div class="col-md-2"><strong>TEMP:</strong> <?= htmlspecialchars($c['temperature'] ?? '') ?></div>
+<div class="col-md-2"><strong>BP:</strong> <?= htmlspecialchars($pendingCheckup['blood_pressure'] ?? '') ?></div>
+<div class="col-md-2"><strong>RR:</strong> <?= htmlspecialchars($pendingCheckup['respiratory_rate'] ?? '') ?></div>
+<div class="col-md-2"><strong>WT:</strong> <?= htmlspecialchars($pendingCheckup['weight'] ?? '') ?></div>
+<div class="col-md-2"><strong>HR:</strong> <?= htmlspecialchars($pendingCheckup['heart_rate'] ?? '') ?></div>
+<div class="col-md-2"><strong>TEMP:</strong> <?= htmlspecialchars($pendingCheckup['temperature'] ?? '') ?></div>
 </div>
 </div>
 </div>
@@ -496,16 +462,8 @@ function addMedication() {
 </div>
 </form>
 
-<?php
-$validCheckups = array_filter($checkups, function($checkup) {
-    return !empty($checkup['diagnosis']) ||
-           !empty($checkup['chief_complaint']) ||
-           !empty($checkup['history_present_illness']);
-});
-?>
-
-<?php if (!empty($validCheckups)): ?>
-<?php foreach ($validCheckups as $c): ?>
+<?php if (!empty($checkups)): ?>
+<?php foreach ($checkups as $c): ?>
 <div class="card shadow mb-4">
 <div class="section-header">
 <i class="fa fa-stethoscope me-2"></i>

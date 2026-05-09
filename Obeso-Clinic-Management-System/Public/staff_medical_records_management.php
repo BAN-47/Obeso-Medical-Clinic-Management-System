@@ -53,23 +53,27 @@ if (isset($_GET['patient_id'])) {
     $patientStmt->execute([$pid]);
     $patient = $patientStmt->fetch(PDO::FETCH_ASSOC);
 
+    $pendingStmt = $db->prepare("SELECT * FROM checkups WHERE patient_id = ? AND status = 'pending' ORDER BY checkup_id DESC LIMIT 1");
+    $pendingStmt->execute([$pid]);
+    $pendingCheckup = $pendingStmt->fetch(PDO::FETCH_ASSOC);
+
     if ($searchDate) {
-        $countCheckupStmt = $db->prepare("SELECT COUNT(*) FROM checkups WHERE patient_id = ? AND checkup_date = ?");
+        $countCheckupStmt = $db->prepare("SELECT COUNT(*) FROM checkups WHERE patient_id = ? AND checkup_date = ? AND status = 'completed'");
         $countCheckupStmt->execute([$pid, $searchDate]);
         $totalCheckups = $countCheckupStmt->fetchColumn();
 
-        $cstmt = $db->prepare("SELECT * FROM checkups WHERE patient_id = :pid AND checkup_date = :searchDate ORDER BY checkup_date DESC LIMIT :checkupLimit OFFSET :checkupOffset");
+        $cstmt = $db->prepare("SELECT * FROM checkups WHERE patient_id = :pid AND checkup_date = :searchDate AND status = 'completed' ORDER BY checkup_date DESC LIMIT :checkupLimit OFFSET :checkupOffset");
         $cstmt->bindValue(':pid', $pid, PDO::PARAM_INT);
         $cstmt->bindValue(':searchDate', $searchDate, PDO::PARAM_STR);
         $cstmt->bindValue(':checkupLimit', $checkupLimit, PDO::PARAM_INT);
         $cstmt->bindValue(':checkupOffset', $checkupOffset, PDO::PARAM_INT);
         $cstmt->execute();
     } else {
-        $countCheckupStmt = $db->prepare("SELECT COUNT(*) FROM checkups WHERE patient_id = ?");
+        $countCheckupStmt = $db->prepare("SELECT COUNT(*) FROM checkups WHERE patient_id = ? AND status = 'completed'");
         $countCheckupStmt->execute([$pid]);
         $totalCheckups = $countCheckupStmt->fetchColumn();
 
-        $cstmt = $db->prepare("SELECT * FROM checkups WHERE patient_id = :pid ORDER BY checkup_date DESC LIMIT :checkupLimit OFFSET :checkupOffset");
+        $cstmt = $db->prepare("SELECT * FROM checkups WHERE patient_id = :pid AND status = 'completed' ORDER BY checkup_date DESC LIMIT :checkupLimit OFFSET :checkupOffset");
         $cstmt->bindValue(':pid', $pid, PDO::PARAM_INT);
         $cstmt->bindValue(':checkupLimit', $checkupLimit, PDO::PARAM_INT);
         $cstmt->bindValue(':checkupOffset', $checkupOffset, PDO::PARAM_INT);
@@ -198,87 +202,105 @@ if (isset($_GET['patient_id'])) {
 <div class="mt-2">
 <strong>Address:</strong> <?= htmlspecialchars($patient['address']) ?>
 </div>
+
+<?php if ($pendingCheckup): ?>
+<div class="mt-2"><strong>Chief Complaint:</strong> <?= htmlspecialchars($pendingCheckup['chief_complaint'] ?? '') ?></div>
+<div class="row mt-2">
+    <div class="col-md-2"><strong>BP:</strong> <?= htmlspecialchars($pendingCheckup['blood_pressure'] ?? '') ?></div>
+    <div class="col-md-2"><strong>RR:</strong> <?= htmlspecialchars($pendingCheckup['respiratory_rate'] ?? '') ?></div>
+    <div class="col-md-2"><strong>WT:</strong> <?= htmlspecialchars($pendingCheckup['weight'] ?? '') ?></div>
+    <div class="col-md-2"><strong>HR:</strong> <?= htmlspecialchars($pendingCheckup['heart_rate'] ?? '') ?></div>
+    <div class="col-md-2"><strong>TEMP:</strong> <?= htmlspecialchars($pendingCheckup['temperature'] ?? '') ?></div>
+</div>
+<?php endif; ?>
+
 </div>
 </div>
 
 <!-- ================= CHECKUP DATE FILTER ================= -->
-<form class="row g-2 mb-4">
-<div class="col-md-3">
-<input type="date" name="checkup_date" class="form-control" value="<?= htmlspecialchars($searchDate) ?>">
-<input type="hidden" name="patient_id" value="<?= $patient['patient_id'] ?>">
-</div>
-<div class="col-md-2">
-<button class="btn btn-primary w-100"><i class="fa fa-search"></i> Search for Checkup Date</button>
-</div>
-</form>
-
-<?php if ($checkups): ?>
-<?php foreach ($checkups as $c): ?>
-<div class="card shadow mb-4">
-<div class="section-header">
-<i class="fa fa-stethoscope me-2"></i>
-Checkup — <?= $c['checkup_date'] ?> (Doctor: <?= htmlspecialchars($c['doc_fullname']) ?>)
-</div>
-<div class="card-body">
-<p><strong>Diagnosis:</strong> <?= htmlspecialchars($c['diagnosis']) ?></p>
-<p><strong>Chief Complaint:</strong> <?= htmlspecialchars($c['chief_complaint']) ?></p>
-<p><strong>HPI:</strong> <?= htmlspecialchars($c['history_present_illness']) ?></p>
-
-<hr>
-<div class="row text-center">
-<div class="col">BP<br><strong><?= $c['blood_pressure'] ?></strong></div>
-<div class="col">RR<br><strong><?= $c['respiratory_rate'] ?></strong></div>
-<div class="col">WT<br><strong><?= $c['weight'] ?></strong></div>
-<div class="col">HR<br><strong><?= $c['heart_rate'] ?></strong></div>
-<div class="col">TEMP<br><strong><?= $c['temperature'] ?></strong></div>
-</div>
-
-<?php if (!empty($c['medications'])): ?>
-<hr>
-<h5>Medications</h5>
-<table class="table table-bordered">
-<thead>
-<tr>
-<th>Generic</th><th>Brand</th><th>Dose</th><th>Amount</th><th>Frequency</th><th>Duration</th>
-</tr>
-</thead>
-<tbody>
-<?php foreach ($c['medications'] as $m): ?>
-<tr>
-<td><?= htmlspecialchars($m['generic_name']) ?></td>
-<td><?= htmlspecialchars($m['brand_name']) ?></td>
-<td><?= htmlspecialchars($m['dose']) ?></td>
-<td><?= htmlspecialchars($m['amount']) ?></td>
-<td><?= htmlspecialchars($m['frequency']) ?></td>
-<td><?= htmlspecialchars($m['duration']) ?></td>
-</tr>
-<?php endforeach; ?>
-</tbody>
-</table>
-<?php endif; ?>
-</div>
-</div>
-<?php endforeach; ?>
-
-<!-- ================= CHECKUP PAGINATION ================= -->
-<nav class="mt-4">
-<ul class="pagination justify-content-center">
-<li class="page-item <?= ($checkupPage <= 1) ? 'disabled' : '' ?>">
-<a class="page-link" href="?patient_id=<?= $patient['patient_id'] ?>&checkup_date=<?= urlencode($searchDate) ?>&checkup_page=<?= $checkupPage-1 ?>">Previous</a>
-</li>
-<?php for ($i=1;$i<=$totalCheckupPages;$i++): ?>
-<li class="page-item <?= ($i==$checkupPage)?'active':'' ?>">
-<a class="page-link" href="?patient_id=<?= $patient['patient_id'] ?>&checkup_date=<?= urlencode($searchDate) ?>&checkup_page=<?= $i ?>"><?= $i ?></a>
-</li>
-<?php endfor; ?>
-<li class="page-item <?= ($checkupPage >= $totalCheckupPages) ? 'disabled' : '' ?>">
-<a class="page-link" href="?patient_id=<?= $patient['patient_id'] ?>&checkup_date=<?= urlencode($searchDate) ?>&checkup_page=<?= $checkupPage+1 ?>">Next</a>
-</li>
-</ul>
-</nav>
+<?php if ($totalCheckups == 0 && !$searchDate): ?>
+    <div class="alert alert-info">No checkup records yet for this patient.</div>
 
 <?php else: ?>
-<div class="alert alert-warning">No checkups found for this patient<?= $searchDate ? " on $searchDate" : "" ?>.</div>
+    <form class="row g-2 mb-4">
+        <div class="col-md-3">
+            <input type="date" name="checkup_date" class="form-control" value="<?= htmlspecialchars($searchDate) ?>">
+            <input type="hidden" name="patient_id" value="<?= $patient['patient_id'] ?>">
+        </div>
+        <div class="col-md-2">
+            <button class="btn btn-primary w-100"><i class="fa fa-search"></i> Search for Checkup Date</button>
+        </div>
+    </form>
+
+    <?php if ($checkups): ?>
+        <?php foreach ($checkups as $c): ?>
+        <div class="card shadow mb-4">
+            <div class="section-header">
+                <i class="fa fa-stethoscope me-2"></i>
+                Checkup — <?= $c['checkup_date'] ?> (Doctor: <?= htmlspecialchars($c['doc_fullname']) ?>)
+            </div>
+            <div class="card-body">
+                <p><strong>Diagnosis:</strong> <?= htmlspecialchars($c['diagnosis']) ?></p>
+                <p><strong>Chief Complaint:</strong> <?= htmlspecialchars($c['chief_complaint']) ?></p>
+                <p><strong>HPI:</strong> <?= htmlspecialchars($c['history_present_illness']) ?></p>
+
+                <hr>
+                <div class="row text-center">
+                    <div class="col">BP<br><strong><?= $c['blood_pressure'] ?></strong></div>
+                    <div class="col">RR<br><strong><?= $c['respiratory_rate'] ?></strong></div>
+                    <div class="col">WT<br><strong><?= $c['weight'] ?></strong></div>
+                    <div class="col">HR<br><strong><?= $c['heart_rate'] ?></strong></div>
+                    <div class="col">TEMP<br><strong><?= $c['temperature'] ?></strong></div>
+                </div>
+
+                <?php if (!empty($c['medications'])): ?>
+                <hr>
+                <h5>Medications</h5>
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Generic</th><th>Brand</th><th>Dose</th><th>Amount</th><th>Frequency</th><th>Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($c['medications'] as $m): ?>
+                        <tr>
+                            <td><?= htmlspecialchars($m['generic_name']) ?></td>
+                            <td><?= htmlspecialchars($m['brand_name']) ?></td>
+                            <td><?= htmlspecialchars($m['dose']) ?></td>
+                            <td><?= htmlspecialchars($m['amount']) ?></td>
+                            <td><?= htmlspecialchars($m['frequency']) ?></td>
+                            <td><?= htmlspecialchars($m['duration']) ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endforeach; ?>
+
+        <!-- ================= CHECKUP PAGINATION ================= -->
+        <nav class="mt-4">
+            <ul class="pagination justify-content-center">
+                <li class="page-item <?= ($checkupPage <= 1) ? 'disabled' : '' ?>">
+                    <a class="page-link" href="?patient_id=<?= $patient['patient_id'] ?>&checkup_date=<?= urlencode($searchDate) ?>&checkup_page=<?= $checkupPage-1 ?>">Previous</a>
+                </li>
+                <?php for ($i=1;$i<=$totalCheckupPages;$i++): ?>
+                <li class="page-item <?= ($i==$checkupPage)?'active':'' ?>">
+                    <a class="page-link" href="?patient_id=<?= $patient['patient_id'] ?>&checkup_date=<?= urlencode($searchDate) ?>&checkup_page=<?= $i ?>"><?= $i ?></a>
+                </li>
+                <?php endfor; ?>
+                <li class="page-item <?= ($checkupPage >= $totalCheckupPages) ? 'disabled' : '' ?>">
+                    <a class="page-link" href="?patient_id=<?= $patient['patient_id'] ?>&checkup_date=<?= urlencode($searchDate) ?>&checkup_page=<?= $checkupPage+1 ?>">Next</a>
+                </li>
+            </ul>
+        </nav>
+
+    <?php elseif ($searchDate): ?>
+        <div class="alert alert-warning">No checkups found for this patient on <?= htmlspecialchars($searchDate) ?>.</div>
+    <?php endif; ?>
+
 <?php endif; ?>
 <?php endif; ?>
 </main>
