@@ -61,39 +61,42 @@ $rr        = htmlspecialchars($checkup['respiratory_rate']        ?? '', ENT_QUO
 $temp      = htmlspecialchars($checkup['temperature']             ?? '', ENT_QUOTES);
 $wt        = htmlspecialchars($checkup['weight']                  ?? '', ENT_QUOTES);
 
-// Build medication rows — minimum 6 rows always shown
+// Build medication rows — only actual medications, no forced empty padding rows
 $med_rows = '';
 $count = 0;
-foreach ($medications as $med) {
-    $generic  = htmlspecialchars($med['generic_name'] ?? '', ENT_QUOTES);
-    $brand    = htmlspecialchars($med['brand_name']   ?? '', ENT_QUOTES);
-    $dose     = htmlspecialchars($med['dose']         ?? '', ENT_QUOTES);
-    $amount   = htmlspecialchars($med['amount']       ?? '', ENT_QUOTES);
-    $freq     = htmlspecialchars($med['frequency']    ?? '', ENT_QUOTES);
-    $duration = htmlspecialchars($med['duration']     ?? '', ENT_QUOTES);
 
-    $bg = ($count % 2 === 0) ? '#dbeeff' : '#c8dff5';
-    $med_rows .= "<tr>
-        <td style='background:{$bg};'>{$generic}</td>
-        <td style='background:{$bg};'>{$brand}</td>
-        <td style='background:{$bg};'>{$dose}</td>
-        <td style='background:{$bg};'>{$amount}</td>
-        <td style='background:{$bg};'>{$freq}</td>
-        <td style='background:{$bg};'>{$duration}</td>
-    </tr>";
-    $count++;
-}
-while ($count < 6) {
-    $bg = ($count % 2 === 0) ? '#dbeeff' : '#c8dff5';
-    $med_rows .= "<tr>
-        <td style='background:{$bg};'>&nbsp;</td>
-        <td style='background:{$bg};'>&nbsp;</td>
-        <td style='background:{$bg};'>&nbsp;</td>
-        <td style='background:{$bg};'>&nbsp;</td>
-        <td style='background:{$bg};'>&nbsp;</td>
-        <td style='background:{$bg};'>&nbsp;</td>
-    </tr>";
-    $count++;
+if (!empty($medications)) {
+    foreach ($medications as $med) {
+        $generic  = htmlspecialchars($med['generic_name'] ?? '', ENT_QUOTES);
+        $brand    = htmlspecialchars($med['brand_name']   ?? '', ENT_QUOTES);
+        $dose     = htmlspecialchars($med['dose']         ?? '', ENT_QUOTES);
+        $amount   = htmlspecialchars($med['amount']       ?? '', ENT_QUOTES);
+        $freq     = htmlspecialchars($med['frequency']    ?? '', ENT_QUOTES);
+        $duration = htmlspecialchars($med['duration']     ?? '', ENT_QUOTES);
+
+        $bg = ($count % 2 === 0) ? '#dbeeff' : '#c8dff5';
+        $med_rows .= "<tr>
+            <td style='background:{$bg};'>{$generic}</td>
+            <td style='background:{$bg};'>{$brand}</td>
+            <td style='background:{$bg};'>{$dose}</td>
+            <td style='background:{$bg};'>{$amount}</td>
+            <td style='background:{$bg};'>{$freq}</td>
+            <td style='background:{$bg};'>{$duration}</td>
+        </tr>";
+        $count++;
+    }
+} else {
+    for ($i = 0; $i < 6; $i++) {
+        $bg = ($i % 2 === 0) ? '#dbeeff' : '#c8dff5';
+        $med_rows .= "<tr>
+            <td style='background:{$bg}; height:26px;'>&nbsp;</td>
+            <td style='background:{$bg};'>&nbsp;</td>
+            <td style='background:{$bg};'>&nbsp;</td>
+            <td style='background:{$bg};'>&nbsp;</td>
+            <td style='background:{$bg};'>&nbsp;</td>
+            <td style='background:{$bg};'>&nbsp;</td>
+        </tr>";
+    }
 }
 
 $html = <<<HTML
@@ -113,7 +116,6 @@ body {
     padding: 30px;
 }
 
-/* ── FIELD ROWS ── */
 .field-table {
     width: 100%;
     border-collapse: collapse;
@@ -134,7 +136,6 @@ body {
     display: inline-block;
 }
 
-/* ── CC/HPI + VITALS ── */
 .row-table {
     width: 100%;
     border-collapse: collapse;
@@ -142,7 +143,7 @@ body {
 }
 .row-table td {
     padding: 0 3px 0 0;
-    vertical-align: middle;
+    vertical-align: top;
 }
 
 .tag-yellow {
@@ -151,6 +152,7 @@ body {
     font-weight: bold;
     font-size: 12px;
     padding: 3px 8px;
+    white-space: nowrap;
 }
 .tag-red {
     background: #e57373;
@@ -158,14 +160,26 @@ body {
     font-weight: bold;
     font-size: 12px;
     padding: 3px 8px;
+    white-space: nowrap;
 }
-.box-val {
+.cc-box {
     border: 1px solid #111;
     font-size: 12px;
     padding: 2px 5px;
     height: 22px;
     display: block;
     width: 100%;
+    overflow: hidden;
+}
+.hpi-box {
+    border: 1px solid #111;
+    font-size: 12px;
+    padding: 3px 5px;
+    min-height: 22px;
+    display: block;
+    width: 100%;
+    word-wrap: break-word;
+    line-height: 1.4;
 }
 .vital-tag {
     background: #fff176;
@@ -173,6 +187,7 @@ body {
     font-weight: bold;
     font-size: 11px;
     padding: 2px 6px;
+    white-space: nowrap;
 }
 .vital-val {
     border: 1px solid #111;
@@ -182,11 +197,8 @@ body {
     width: 58px;
     display: inline-block;
 }
-
-/* ── VITALS INNER TABLE ── */
 .vitals-inner {
     border-collapse: collapse;
-    width: 100%;
 }
 .vitals-inner td {
     padding: 1px 3px;
@@ -194,16 +206,16 @@ body {
     white-space: nowrap;
 }
 
-/* ── BLANK WRITING SPACE ── */
+/* ── BLANK WRITING SPACE — increased height ── */
 .writing-space {
     width: 100%;
-    height: 220px;
+    height: 310px;
     border-top: 1px solid #ccc;
     border-bottom: 1px solid #ccc;
-    margin-top: 14px;
+    margin-top: 18px;
+    margin-bottom: 4px;
 }
 
-/* ── MEDICATIONS ── */
 .med-tag {
     background: #e57373;
     color: #4a0000;
@@ -211,7 +223,7 @@ body {
     font-size: 12px;
     padding: 4px 12px;
     display: inline-block;
-    margin-top: 10px;
+    margin-top: 12px;
 }
 .med-table {
     width: 100%;
@@ -229,12 +241,11 @@ body {
 }
 .med-table td {
     border: 1px solid #aaa;
-    padding: 4px 5px;
-    height: 26px;
+    padding: 6px 6px;
     font-size: 12px;
+    word-wrap: break-word;
 }
 
-/* ── SIGNATURE ── */
 .sig-wrap {
     margin-top: 40px;
     text-align: right;
@@ -282,7 +293,7 @@ body {
 <table class="row-table" style="margin-top:10px;">
     <tr>
         <td style="width:38px;"><span class="tag-yellow">CC</span></td>
-        <td style="width:270px;"><span class="box-val">{$cc}</span></td>
+        <td style="width:270px;"><span class="cc-box">{$cc}</span></td>
         <td style="width:8px;"></td>
         <td>
             <table class="vitals-inner">
@@ -302,7 +313,7 @@ body {
 <table class="row-table" style="margin-top:5px;">
     <tr>
         <td style="width:38px;"><span class="tag-red">HPI</span></td>
-        <td style="width:270px;"><span class="box-val">{$hpi}</span></td>
+        <td style="width:270px;"><span class="hpi-box">{$hpi}</span></td>
         <td style="width:8px;"></td>
         <td>
             <table class="vitals-inner">
