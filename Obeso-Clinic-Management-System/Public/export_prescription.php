@@ -46,21 +46,20 @@ $medications = $medObj->getLatestByPatient($checkup_id);
 $dompdf = new Dompdf();
 
 // Sanitize all values
-$patient_name = htmlspecialchars($patient['full_name']              ?? 'Unknown Patient', ENT_QUOTES);
-$patient_age  = htmlspecialchars($patient['age']                    ?? 'N/A',             ENT_QUOTES);
-$patient_sex  = htmlspecialchars($patient['sex']                    ?? '',                ENT_QUOTES);
+$patient_name = htmlspecialchars($patient['full_name']             ?? 'Unknown Patient', ENT_QUOTES);
+$patient_age  = htmlspecialchars($patient['age']                   ?? 'N/A',             ENT_QUOTES);
 $today        = !empty($checkup['checkup_date'])
                     ? date('F j, Y', strtotime($checkup['checkup_date']))
                     : date('F j, Y');
 
-$cc        = htmlspecialchars($checkup['chief_complaint']          ?? '', ENT_QUOTES);
-$hpi       = htmlspecialchars($checkup['history_present_illness']  ?? '', ENT_QUOTES);
-$diagnosis = htmlspecialchars($checkup['diagnosis']                ?? '', ENT_QUOTES);
-$bp        = htmlspecialchars($checkup['blood_pressure']           ?? '', ENT_QUOTES);
-$hr        = htmlspecialchars($checkup['heart_rate']               ?? '', ENT_QUOTES);
-$rr        = htmlspecialchars($checkup['respiratory_rate']         ?? '', ENT_QUOTES);
-$temp      = htmlspecialchars($checkup['temperature']              ?? '', ENT_QUOTES);
-$wt        = htmlspecialchars($checkup['weight']                   ?? '', ENT_QUOTES);
+$cc        = htmlspecialchars($checkup['chief_complaint']         ?? '', ENT_QUOTES);
+$hpi       = htmlspecialchars($checkup['history_present_illness'] ?? '', ENT_QUOTES);
+$diagnosis = htmlspecialchars($checkup['diagnosis']               ?? '', ENT_QUOTES);
+$bp        = htmlspecialchars($checkup['blood_pressure']          ?? '', ENT_QUOTES);
+$hr        = htmlspecialchars($checkup['heart_rate']              ?? '', ENT_QUOTES);
+$rr        = htmlspecialchars($checkup['respiratory_rate']        ?? '', ENT_QUOTES);
+$temp      = htmlspecialchars($checkup['temperature']             ?? '', ENT_QUOTES);
+$wt        = htmlspecialchars($checkup['weight']                  ?? '', ENT_QUOTES);
 
 // Build medication rows — minimum 6 rows always shown
 $med_rows = '';
@@ -74,23 +73,25 @@ foreach ($medications as $med) {
     $duration = htmlspecialchars($med['duration']     ?? '', ENT_QUOTES);
 
     $bg = ($count % 2 === 0) ? '#dbeeff' : '#c8dff5';
-    $med_rows .= "<tr style='background:{$bg};'>
-        <td>{$generic}</td>
-        <td>{$brand}</td>
-        <td>{$dose}</td>
-        <td>{$amount}</td>
-        <td>{$freq}</td>
-        <td>{$duration}</td>
+    $med_rows .= "<tr>
+        <td style='background:{$bg};'>{$generic}</td>
+        <td style='background:{$bg};'>{$brand}</td>
+        <td style='background:{$bg};'>{$dose}</td>
+        <td style='background:{$bg};'>{$amount}</td>
+        <td style='background:{$bg};'>{$freq}</td>
+        <td style='background:{$bg};'>{$duration}</td>
     </tr>";
     $count++;
 }
-
-// Fill remaining empty rows up to 6
 while ($count < 6) {
     $bg = ($count % 2 === 0) ? '#dbeeff' : '#c8dff5';
-    $med_rows .= "<tr style='background:{$bg};'>
-        <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
-        <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+    $med_rows .= "<tr>
+        <td style='background:{$bg};'>&nbsp;</td>
+        <td style='background:{$bg};'>&nbsp;</td>
+        <td style='background:{$bg};'>&nbsp;</td>
+        <td style='background:{$bg};'>&nbsp;</td>
+        <td style='background:{$bg};'>&nbsp;</td>
+        <td style='background:{$bg};'>&nbsp;</td>
     </tr>";
     $count++;
 }
@@ -103,271 +104,257 @@ $html = <<<HTML
 <title>Prescription - {$patient_name}</title>
 <style>
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+* { margin: 0; padding: 0; }
 
 body {
     font-family: Arial, sans-serif;
-    background: #f5f5f5;
-    padding: 20px;
-}
-
-.paper {
-    width: 720px;
-    margin: auto;
+    font-size: 13px;
     background: #fff;
-    padding: 32px 36px;
-    border: 1px solid #ccc;
+    padding: 30px;
 }
 
-/* ---- TOP FIELD ROWS ---- */
-.field-row {
-    display: flex;
-    align-items: center;
-    margin-bottom: 10px;
-    font-size: 13px;
-}
-
-.field-label {
-    font-weight: bold;
-    min-width: 70px;
-    font-size: 13px;
-}
-
-.field-value {
-    border-bottom: 1.5px solid #111;
-    font-size: 13px;
-    padding: 1px 6px;
-    min-height: 20px;
-}
-
-.f-short  { width: 90px; }
-.f-medium { width: 180px; }
-.f-long   { width: 440px; }
-
-/* ---- CC / HPI + VITALS ROW ---- */
-.cc-hpi-row {
-    display: flex;
-    align-items: center;
+/* ── FIELD ROWS ── */
+.field-table {
+    width: 100%;
+    border-collapse: collapse;
     margin-bottom: 8px;
+}
+.field-table td {
+    padding: 2px 4px;
+    vertical-align: bottom;
+}
+.lbl {
+    font-weight: bold;
     font-size: 13px;
+}
+.underline {
+    border-bottom: 1px solid #000;
+    font-size: 13px;
+    padding: 1px 4px;
+    display: inline-block;
+}
+
+/* ── CC/HPI + VITALS ── */
+.row-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 5px;
+}
+.row-table td {
+    padding: 0 3px 0 0;
+    vertical-align: middle;
 }
 
 .tag-yellow {
     background: #fff176;
     color: #4a3d00;
-    padding: 3px 10px;
     font-weight: bold;
     font-size: 12px;
-    margin-right: 6px;
-    white-space: nowrap;
+    padding: 3px 8px;
 }
-
 .tag-red {
     background: #e57373;
     color: #4a0000;
-    padding: 3px 10px;
     font-weight: bold;
     font-size: 12px;
-    margin-right: 6px;
-    white-space: nowrap;
+    padding: 3px 8px;
 }
-
-.box-value {
-    border: 1.5px solid #111;
-    min-height: 22px;
-    width: 240px;
-    padding: 2px 6px;
+.box-val {
+    border: 1px solid #111;
     font-size: 12px;
-    vertical-align: middle;
+    padding: 2px 5px;
+    height: 22px;
+    display: block;
+    width: 100%;
 }
-
-.vitals-block {
-    margin-left: 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.vital-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
 .vital-tag {
     background: #fff176;
     color: #4a3d00;
-    padding: 2px 8px;
-    font-size: 11px;
     font-weight: bold;
+    font-size: 11px;
+    padding: 2px 6px;
+}
+.vital-val {
+    border: 1px solid #111;
+    font-size: 12px;
+    padding: 1px 4px;
+    height: 20px;
+    width: 58px;
+    display: inline-block;
+}
+
+/* ── VITALS INNER TABLE ── */
+.vitals-inner {
+    border-collapse: collapse;
+    width: 100%;
+}
+.vitals-inner td {
+    padding: 1px 3px;
+    vertical-align: middle;
     white-space: nowrap;
 }
 
-.vital-val {
-    border: 1.5px solid #111;
-    min-height: 20px;
-    width: 64px;
-    font-size: 12px;
-    padding: 1px 4px;
-}
-
-/* ---- BLANK WRITING SPACE ---- */
+/* ── BLANK WRITING SPACE ── */
 .writing-space {
-    height: 240px;
+    width: 100%;
+    height: 220px;
     border-top: 1px solid #ccc;
     border-bottom: 1px solid #ccc;
-    margin: 16px 0 0 0;
+    margin-top: 14px;
 }
 
-/* ---- MEDICATIONS TABLE ---- */
+/* ── MEDICATIONS ── */
 .med-tag {
-    display: inline-block;
     background: #e57373;
     color: #4a0000;
-    padding: 4px 12px;
     font-weight: bold;
     font-size: 12px;
+    padding: 4px 12px;
+    display: inline-block;
     margin-top: 10px;
-    margin-bottom: 0;
 }
-
 .med-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 12px;
     table-layout: fixed;
-    margin-top: 0;
 }
-
 .med-table th {
     border: 1.5px solid #111;
     padding: 5px 4px;
     text-align: center;
     font-weight: bold;
     background: #fff;
-    color: #111;
     font-size: 12px;
 }
-
 .med-table td {
     border: 1px solid #aaa;
-    padding: 4px 6px;
+    padding: 4px 5px;
     height: 26px;
     font-size: 12px;
 }
 
-/* ---- SIGNATURE ---- */
-.signature {
+/* ── SIGNATURE ── */
+.sig-wrap {
     margin-top: 40px;
     text-align: right;
 }
-
-.signature-line {
+.sig-line {
     display: inline-block;
     width: 220px;
     border-top: 1.5px solid #111;
-    padding-top: 5px;
+    padding-top: 4px;
     text-align: center;
     font-size: 12px;
-}
-
-@media print {
-    body { background: #fff; padding: 0; }
-    .paper { border: none; width: 100%; }
 }
 
 </style>
 </head>
 <body>
-<div class="paper">
 
-    <!-- DATE -->
-    <div class="field-row">
-        <span class="field-label">DATE</span>
-        <span class="field-value f-medium">{$today}</span>
-    </div>
+<!-- DATE -->
+<table class="field-table">
+    <tr>
+        <td style="width:50px;"><span class="lbl">DATE</span></td>
+        <td><span class="underline" style="width:180px;">{$today}</span></td>
+    </tr>
+</table>
 
-    <!-- NAME -->
-    <div class="field-row">
-        <span class="field-label">NAME</span>
-        <span class="field-value f-long">{$patient_name}</span>
-    </div>
+<!-- NAME -->
+<table class="field-table">
+    <tr>
+        <td style="width:50px;"><span class="lbl">NAME</span></td>
+        <td><span class="underline" style="width:430px;">{$patient_name}</span></td>
+    </tr>
+</table>
 
-    <!-- AGE + DIAGNOSIS -->
-    <div class="field-row">
-        <span class="field-label">AGE</span>
-        <span class="field-value f-short">{$patient_age}</span>
-        <span class="field-label" style="margin-left:20px; min-width:70px;">Diagnosis</span>
-        <span class="field-value f-medium">{$diagnosis}</span>
-    </div>
+<!-- AGE + DIAGNOSIS -->
+<table class="field-table">
+    <tr>
+        <td style="width:50px;"><span class="lbl">AGE</span></td>
+        <td style="width:90px;"><span class="underline" style="width:75px;">{$patient_age}</span></td>
+        <td style="width:75px;"><span class="lbl">Diagnosis</span></td>
+        <td><span class="underline" style="width:250px;">{$diagnosis}</span></td>
+    </tr>
+</table>
 
-    <!-- CC + BP / RR -->
-    <div class="cc-hpi-row" style="margin-top:10px;">
-        <span class="tag-yellow">CC</span>
-        <span class="box-value">{$cc}</span>
-        <div class="vitals-block">
-            <div class="vital-row">
-                <span class="vital-tag">BP</span>
-                <span class="vital-val">{$bp}</span>
-                <span class="vital-tag">RR</span>
-                <span class="vital-val">{$rr}</span>
-            </div>
-        </div>
-    </div>
+<!-- CC row -->
+<table class="row-table" style="margin-top:10px;">
+    <tr>
+        <td style="width:38px;"><span class="tag-yellow">CC</span></td>
+        <td style="width:270px;"><span class="box-val">{$cc}</span></td>
+        <td style="width:8px;"></td>
+        <td>
+            <table class="vitals-inner">
+                <tr>
+                    <td><span class="vital-tag">BP</span></td>
+                    <td><span class="vital-val">{$bp}</span></td>
+                    <td style="width:6px;"></td>
+                    <td><span class="vital-tag">RR</span></td>
+                    <td><span class="vital-val">{$rr}</span></td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
 
-    <!-- HPI + WT / HR / TEMP -->
-    <div class="cc-hpi-row" style="margin-top:5px;">
-        <span class="tag-red">HPI</span>
-        <span class="box-value">{$hpi}</span>
-        <div class="vitals-block">
-            <div class="vital-row">
-                <span class="vital-tag">WT</span>
-                <span class="vital-val">{$wt}</span>
-                <span class="vital-tag">HR</span>
-                <span class="vital-val">{$hr}</span>
-                <span class="vital-tag">TEMP</span>
-                <span class="vital-val">{$temp}</span>
-            </div>
-        </div>
-    </div>
+<!-- HPI row -->
+<table class="row-table" style="margin-top:5px;">
+    <tr>
+        <td style="width:38px;"><span class="tag-red">HPI</span></td>
+        <td style="width:270px;"><span class="box-val">{$hpi}</span></td>
+        <td style="width:8px;"></td>
+        <td>
+            <table class="vitals-inner">
+                <tr>
+                    <td><span class="vital-tag">WT</span></td>
+                    <td><span class="vital-val">{$wt}</span></td>
+                    <td style="width:4px;"></td>
+                    <td><span class="vital-tag">HR</span></td>
+                    <td><span class="vital-val">{$hr}</span></td>
+                    <td style="width:4px;"></td>
+                    <td><span class="vital-tag">TEMP</span></td>
+                    <td><span class="vital-val">{$temp}</span></td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
 
-    <!-- BLANK WRITING SPACE -->
-    <div class="writing-space"></div>
+<!-- BLANK WRITING SPACE -->
+<div class="writing-space"></div>
 
-    <!-- MEDICATIONS -->
-    <div>
-        <span class="med-tag">MEDICATIONS</span>
-    </div>
-    <table class="med-table">
-        <colgroup>
-            <col style="width:22%">
-            <col style="width:18%">
-            <col style="width:13%">
-            <col style="width:13%">
-            <col style="width:20%">
-            <col style="width:14%">
-        </colgroup>
-        <thead>
-            <tr>
-                <th>Generic Name</th>
-                <th>Brand Name</th>
-                <th>Dose</th>
-                <th>Amount</th>
-                <th>Frequency</th>
-                <th>Duration</th>
-            </tr>
-        </thead>
-        <tbody>
-            {$med_rows}
-        </tbody>
-    </table>
+<!-- MEDICATIONS -->
+<div><span class="med-tag">MEDICATIONS</span></div>
+<table class="med-table">
+    <colgroup>
+        <col style="width:22%">
+        <col style="width:18%">
+        <col style="width:12%">
+        <col style="width:13%">
+        <col style="width:21%">
+        <col style="width:14%">
+    </colgroup>
+    <thead>
+        <tr>
+            <th>Generic Name</th>
+            <th>Brand Name</th>
+            <th>Dose</th>
+            <th>Amount</th>
+            <th>Frequency</th>
+            <th>Duration</th>
+        </tr>
+    </thead>
+    <tbody>
+        {$med_rows}
+    </tbody>
+</table>
 
-    <!-- SIGNATURE -->
-    <div class="signature">
-        <div class="signature-line">Doctor's Signature</div>
-    </div>
-
+<!-- SIGNATURE -->
+<div class="sig-wrap">
+    <div class="sig-line">Doctor's Signature</div>
 </div>
+
 </body>
 </html>
 HTML;
