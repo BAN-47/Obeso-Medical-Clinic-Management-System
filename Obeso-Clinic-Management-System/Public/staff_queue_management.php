@@ -186,8 +186,6 @@ body { background: var(--page-bg); }
 
 /* ── Page header strip (matches blue billing header) ── */
 .page-header-bar {
-    background: var(--accent);
-    color: #fff;
     padding: 14px 24px;
     display: flex;
     align-items: center;
@@ -196,15 +194,17 @@ body { background: var(--page-bg); }
     gap: 10px;
     margin-bottom: 24px;
 }
+
 .page-header-bar h4 {
     margin: 0;
     font-size: 1.15rem;
     font-weight: 600;
-    color: #fff;
+    color: #212121;
 }
+
 .page-header-bar .sub {
     font-size: .8rem;
-    opacity: .82;
+    color: #757575;
     margin-top: 2px;
 }
 
@@ -417,12 +417,6 @@ tr.row-done td { opacity: .45; }
 <main class="container-fluid px-0 pb-4">
 
     <div class="page-header-bar">
-        <div>
-            <h4>Queue Management</h4>
-            <div class="sub">
-                <?= date('l, F j, Y') ?>
-            </div>
-        </div>
         <div class="d-flex align-items-center gap-2 flex-wrap">
             <a href="tv_display.php" target="_blank" class="btn-tv">
                Open TV Display
