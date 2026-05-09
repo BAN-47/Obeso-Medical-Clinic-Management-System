@@ -16,21 +16,21 @@ $checkupObj = new Checkup($conn);
 $medObj = new PrescribedMedication($conn);
 
 // Get checkup ID from URL parameter
-$checkup_id = $_GET['checkup_id'] ?? 1; // Default to 1 if not provided
+$checkup_id = $_GET['checkup_id'] ?? 1;
 $checkup = $checkupObj->get($checkup_id);
 
-// If checkup not found, use default
 if (!$checkup) {
     $checkup = [
-        'patient_id' => 1,
-        'chief_complaint' => '',
-        'history_present_illness' => '',
-        'diagnosis' => '',
-        'blood_pressure' => '',
-        'heart_rate' => '',
-        'respiratory_rate' => '',
-        'temperature' => '',
-        'weight' => ''
+        'patient_id'                => 1,
+        'chief_complaint'           => '',
+        'history_present_illness'   => '',
+        'diagnosis'                 => '',
+        'blood_pressure'            => '',
+        'heart_rate'                => '',
+        'respiratory_rate'          => '',
+        'temperature'               => '',
+        'weight'                    => '',
+        'checkup_date'              => '',
     ];
 }
 
@@ -40,40 +40,63 @@ if (!$patient) {
     $patient = ['full_name' => 'Unknown Patient', 'age' => 'N/A', 'sex' => ''];
 }
 
-// Get medications
+// Get medications for this checkup
 $medications = $medObj->getLatestByPatient($checkup_id);
 
 $dompdf = new Dompdf();
 
-$patient_name = htmlspecialchars($patient['full_name'] ?? 'Unknown Patient', ENT_QUOTES);
-$patient_age = htmlspecialchars($patient['age'] ?? 'N/A', ENT_QUOTES);
-$patient_sex = htmlspecialchars($patient['sex'] ?? '', ENT_QUOTES);
-$today = date('F j, Y');
+// Sanitize all values
+$patient_name = htmlspecialchars($patient['full_name']             ?? 'Unknown Patient', ENT_QUOTES);
+$patient_age  = htmlspecialchars($patient['age']                   ?? 'N/A',             ENT_QUOTES);
+$today        = !empty($checkup['checkup_date'])
+                    ? date('F j, Y', strtotime($checkup['checkup_date']))
+                    : date('F j, Y');
 
-$cc = htmlspecialchars($checkup['chief_complaint'] ?? '', ENT_QUOTES);
-$hpi = htmlspecialchars($checkup['history_present_illness'] ?? '', ENT_QUOTES);
-$diagnosis = htmlspecialchars($checkup['diagnosis'] ?? '', ENT_QUOTES);
-$bp = htmlspecialchars($checkup['blood_pressure'] ?? '', ENT_QUOTES);
-$hr = htmlspecialchars($checkup['heart_rate'] ?? '', ENT_QUOTES);
-$rr = htmlspecialchars($checkup['respiratory_rate'] ?? '', ENT_QUOTES);
-$temp = htmlspecialchars($checkup['temperature'] ?? '', ENT_QUOTES);
-$wt = htmlspecialchars($checkup['weight'] ?? '', ENT_QUOTES);
+$cc        = htmlspecialchars($checkup['chief_complaint']         ?? '', ENT_QUOTES);
+$hpi       = htmlspecialchars($checkup['history_present_illness'] ?? '', ENT_QUOTES);
+$diagnosis = htmlspecialchars($checkup['diagnosis']               ?? '', ENT_QUOTES);
+$bp        = htmlspecialchars($checkup['blood_pressure']          ?? '', ENT_QUOTES);
+$hr        = htmlspecialchars($checkup['heart_rate']              ?? '', ENT_QUOTES);
+$rr        = htmlspecialchars($checkup['respiratory_rate']        ?? '', ENT_QUOTES);
+$temp      = htmlspecialchars($checkup['temperature']             ?? '', ENT_QUOTES);
+$wt        = htmlspecialchars($checkup['weight']                  ?? '', ENT_QUOTES);
 
-// Build medication rows
+// Build medication rows — only actual medications, no forced empty padding rows
 $med_rows = '';
-foreach ($medications as $med) {
-    $generic = htmlspecialchars($med['generic_name'] ?? '', ENT_QUOTES);
-    $brand = htmlspecialchars($med['brand_name'] ?? '', ENT_QUOTES);
-    $dose = htmlspecialchars($med['dose'] ?? '', ENT_QUOTES);
-    $amount = htmlspecialchars($med['amount'] ?? '', ENT_QUOTES);
-    $freq = htmlspecialchars($med['frequency'] ?? '', ENT_QUOTES);
-    $duration = htmlspecialchars($med['duration'] ?? '', ENT_QUOTES);
-    $med_rows .= "<tr><td>$generic</td><td>$brand</td><td>$dose</td><td>$amount</td><td>$freq</td><td>$duration</td></tr>";
-}
-// Fill remaining rows with empty cells
-while (count($medications) < 6) {
-    $med_rows .= "<tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>";
-    $medications[] = null; // dummy
+$count = 0;
+
+if (!empty($medications)) {
+    foreach ($medications as $med) {
+        $generic  = htmlspecialchars($med['generic_name'] ?? '', ENT_QUOTES);
+        $brand    = htmlspecialchars($med['brand_name']   ?? '', ENT_QUOTES);
+        $dose     = htmlspecialchars($med['dose']         ?? '', ENT_QUOTES);
+        $amount   = htmlspecialchars($med['amount']       ?? '', ENT_QUOTES);
+        $freq     = htmlspecialchars($med['frequency']    ?? '', ENT_QUOTES);
+        $duration = htmlspecialchars($med['duration']     ?? '', ENT_QUOTES);
+
+        $bg = ($count % 2 === 0) ? '#dbeeff' : '#c8dff5';
+        $med_rows .= "<tr>
+            <td style='background:{$bg};'>{$generic}</td>
+            <td style='background:{$bg};'>{$brand}</td>
+            <td style='background:{$bg};'>{$dose}</td>
+            <td style='background:{$bg};'>{$amount}</td>
+            <td style='background:{$bg};'>{$freq}</td>
+            <td style='background:{$bg};'>{$duration}</td>
+        </tr>";
+        $count++;
+    }
+} else {
+    for ($i = 0; $i < 6; $i++) {
+        $bg = ($i % 2 === 0) ? '#dbeeff' : '#c8dff5';
+        $med_rows .= "<tr>
+            <td style='background:{$bg}; height:26px;'>&nbsp;</td>
+            <td style='background:{$bg};'>&nbsp;</td>
+            <td style='background:{$bg};'>&nbsp;</td>
+            <td style='background:{$bg};'>&nbsp;</td>
+            <td style='background:{$bg};'>&nbsp;</td>
+            <td style='background:{$bg};'>&nbsp;</td>
+        </tr>";
+    }
 }
 
 $html = <<<HTML
@@ -81,277 +104,274 @@ $html = <<<HTML
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Clinic Prescription Form</title>
-
+<title>Prescription - {$patient_name}</title>
 <style>
 
-body{
-    font-family:Arial, sans-serif;
-    background:#f5f5f5;
-    padding:20px;
+* { margin: 0; padding: 0; }
+
+body {
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    background: #fff;
+    padding: 30px;
 }
 
-.paper{
-    width:950px;
-    margin:auto;
-    background:#fff;
-    padding:30px;
-    border:1px solid #ccc;
+.field-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 8px;
+}
+.field-table td {
+    padding: 2px 4px;
+    vertical-align: bottom;
+}
+.lbl {
+    font-weight: bold;
+    font-size: 13px;
+}
+.underline {
+    border-bottom: 1px solid #000;
+    font-size: 13px;
+    padding: 1px 4px;
+    display: inline-block;
 }
 
-/* ---------- TOP LINES ---------- */
-
-.line-row{
-    margin-bottom:12px;
-    font-size:15px;
+.row-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 5px;
+}
+.row-table td {
+    padding: 0 3px 0 0;
+    vertical-align: top;
 }
 
-.line-row label{
-    display:inline-block;
-    width:70px;
-    font-weight:bold;
+.tag-yellow {
+    background: #fff176;
+    color: #4a3d00;
+    font-weight: bold;
+    font-size: 12px;
+    padding: 3px 8px;
+    white-space: nowrap;
+}
+.tag-red {
+    background: #e57373;
+    color: #4a0000;
+    font-weight: bold;
+    font-size: 12px;
+    padding: 3px 8px;
+    white-space: nowrap;
+}
+.cc-box {
+    border: 1px solid #111;
+    font-size: 12px;
+    padding: 2px 5px;
+    height: 22px;
+    display: block;
+    width: 100%;
+    overflow: hidden;
+}
+.hpi-box {
+    border: 1px solid #111;
+    font-size: 12px;
+    padding: 3px 5px;
+    min-height: 22px;
+    display: block;
+    width: 100%;
+    word-wrap: break-word;
+    line-height: 1.4;
+}
+.vital-tag {
+    background: #fff176;
+    color: #4a3d00;
+    font-weight: bold;
+    font-size: 11px;
+    padding: 2px 6px;
+    white-space: nowrap;
+}
+.vital-val {
+    border: 1px solid #111;
+    font-size: 12px;
+    padding: 1px 4px;
+    height: 20px;
+    width: 58px;
+    display: inline-block;
+}
+.vitals-inner {
+    border-collapse: collapse;
+}
+.vitals-inner td {
+    padding: 1px 3px;
+    vertical-align: middle;
+    white-space: nowrap;
 }
 
-.line-input{
-    border:none;
-    border-bottom:1px solid #000;
-    outline:none;
-    font-size:14px;
-    padding:2px 5px;
+/* ── BLANK WRITING SPACE — increased height ── */
+.writing-space {
+    width: 100%;
+    height: 310px;
+    border-top: 1px solid #ccc;
+    border-bottom: 1px solid #ccc;
+    margin-top: 18px;
+    margin-bottom: 4px;
 }
 
-.short{
-    width:120px;
+.med-tag {
+    background: #e57373;
+    color: #4a0000;
+    font-weight: bold;
+    font-size: 12px;
+    padding: 4px 12px;
+    display: inline-block;
+    margin-top: 12px;
+}
+.med-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    table-layout: fixed;
+}
+.med-table th {
+    border: 1.5px solid #111;
+    padding: 5px 4px;
+    text-align: center;
+    font-weight: bold;
+    background: #fff;
+    font-size: 12px;
+}
+.med-table td {
+    border: 1px solid #aaa;
+    padding: 6px 6px;
+    font-size: 12px;
+    word-wrap: break-word;
 }
 
-.medium{
-    width:220px;
+.sig-wrap {
+    margin-top: 40px;
+    text-align: right;
 }
-
-.long{
-    width:500px;
-}
-
-/* ---------- COLORED LABELS ---------- */
-
-.tag{
-    display:inline-block;
-    padding:4px 12px;
-    font-weight:bold;
-    font-size:13px;
-    margin-right:5px;
-}
-
-.yellow{
-    background:#fff176;
-}
-
-.red{
-    background:#ff8a80;
-}
-
-/* ---------- INLINE BOX ---------- */
-
-.inline-box{
-    display:inline-block;
-    border:1px solid #000;
-    height:24px;
-    vertical-align:middle;
-    margin-right:10px;
-}
-
-.box-sm{
-    width:70px;
-}
-
-.box-md{
-    width:120px;
-}
-
-.box-lg{
-    width:350px;
-}
-
-/* ---------- VITALS ---------- */
-
-.vitals{
-    margin-top:15px;
-    margin-left:110px;
-}
-
-.vital-group{
-    margin-bottom:10px;
-}
-
-.vital-label{
-    display:inline-block;
-    background:#fff176;
-    padding:4px 14px;
-    font-weight:bold;
-    font-size:13px;
-}
-
-.vital-input{
-    display:inline-block;
-    border:1px solid #000;
-    height:24px;
-    width:80px;
-    vertical-align:middle;
-    margin-right:20px;
-}
-
-/* ---------- RX TABLE ---------- */
-
-.rx-title{
-    margin-top:30px;
-    display:inline-block;
-    background:#ff8a80;
-    padding:6px 15px;
-    font-weight:bold;
-}
-
-.rx-area{
-    margin-top:15px;
-    border-top:1px solid #000;
-    min-height:250px;
-    padding-top:15px;
-}
-
-.rx-line{
-    border-bottom:1px solid #ccc;
-    height:35px;
-}
-
-/* ---------- SIGNATURE ---------- */
-
-.signature{
-    margin-top:50px;
-    text-align:right;
-}
-
-.signature-line{
-    display:inline-block;
-    width:250px;
-    border-top:1px solid #000;
-    padding-top:5px;
-    text-align:center;
-    font-size:13px;
-}
-
-@media print{
-    body{
-        background:#fff;
-        padding:0;
-    }
-
-    .paper{
-        border:none;
-        width:100%;
-    }
+.sig-line {
+    display: inline-block;
+    width: 220px;
+    border-top: 1.5px solid #111;
+    padding-top: 4px;
+    text-align: center;
+    font-size: 12px;
 }
 
 </style>
 </head>
-
 <body>
 
-<div class="paper">
+<!-- DATE -->
+<table class="field-table">
+    <tr>
+        <td style="width:50px;"><span class="lbl">DATE</span></td>
+        <td><span class="underline" style="width:180px;">{$today}</span></td>
+    </tr>
+</table>
 
-    <!-- DATE -->
-    <div class="line-row">
-        <label>DATE</label>
-        <input type="text" class="line-input medium">
-    </div>
+<!-- NAME -->
+<table class="field-table">
+    <tr>
+        <td style="width:50px;"><span class="lbl">NAME</span></td>
+        <td><span class="underline" style="width:430px;">{$patient_name}</span></td>
+    </tr>
+</table>
 
-    <!-- NAME -->
-    <div class="line-row">
-        <label>NAME</label>
-        <input type="text" class="line-input long">
-    </div>
+<!-- AGE + DIAGNOSIS -->
+<table class="field-table">
+    <tr>
+        <td style="width:50px;"><span class="lbl">AGE</span></td>
+        <td style="width:90px;"><span class="underline" style="width:75px;">{$patient_age}</span></td>
+        <td style="width:75px;"><span class="lbl">Diagnosis</span></td>
+        <td><span class="underline" style="width:250px;">{$diagnosis}</span></td>
+    </tr>
+</table>
 
-    <!-- AGE + DIAGNOSIS -->
-    <div class="line-row">
-        <label>AGE</label>
-        <input type="text" class="line-input short">
+<!-- CC row -->
+<table class="row-table" style="margin-top:10px;">
+    <tr>
+        <td style="width:38px;"><span class="tag-yellow">CC</span></td>
+        <td style="width:270px;"><span class="cc-box">{$cc}</span></td>
+        <td style="width:8px;"></td>
+        <td>
+            <table class="vitals-inner">
+                <tr>
+                    <td><span class="vital-tag">BP</span></td>
+                    <td><span class="vital-val">{$bp}</span></td>
+                    <td style="width:6px;"></td>
+                    <td><span class="vital-tag">RR</span></td>
+                    <td><span class="vital-val">{$rr}</span></td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
 
-        <span style="margin-left:40px; font-weight:bold;">Diagnosis</span>
-        <input type="text" class="line-input medium">
-    </div>
+<!-- HPI row -->
+<table class="row-table" style="margin-top:5px;">
+    <tr>
+        <td style="width:38px;"><span class="tag-red">HPI</span></td>
+        <td style="width:270px;"><span class="hpi-box">{$hpi}</span></td>
+        <td style="width:8px;"></td>
+        <td>
+            <table class="vitals-inner">
+                <tr>
+                    <td><span class="vital-tag">WT</span></td>
+                    <td><span class="vital-val">{$wt}</span></td>
+                    <td style="width:4px;"></td>
+                    <td><span class="vital-tag">HR</span></td>
+                    <td><span class="vital-val">{$hr}</span></td>
+                    <td style="width:4px;"></td>
+                    <td><span class="vital-tag">TEMP</span></td>
+                    <td><span class="vital-val">{$temp}</span></td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
 
-    <!-- CC -->
-    <div class="line-row">
-        <span class="tag yellow">CC</span>
-        <span class="inline-box box-lg"></span>
-    </div>
+<!-- BLANK WRITING SPACE -->
+<div class="writing-space"></div>
 
-    <!-- HPI -->
-    <div class="line-row">
-        <span class="tag red">HPI</span>
-        <span class="inline-box box-lg"></span>
-    </div>
+<!-- MEDICATIONS -->
+<div><span class="med-tag">MEDICATIONS</span></div>
+<table class="med-table">
+    <colgroup>
+        <col style="width:22%">
+        <col style="width:18%">
+        <col style="width:12%">
+        <col style="width:13%">
+        <col style="width:21%">
+        <col style="width:14%">
+    </colgroup>
+    <thead>
+        <tr>
+            <th>Generic Name</th>
+            <th>Brand Name</th>
+            <th>Dose</th>
+            <th>Amount</th>
+            <th>Frequency</th>
+            <th>Duration</th>
+        </tr>
+    </thead>
+    <tbody>
+        {$med_rows}
+    </tbody>
+</table>
 
-    <!-- VITALS -->
-    <div class="vitals">
-
-        <div class="vital-group">
-            <span class="vital-label">BP</span>
-            <span class="vital-input"></span>
-
-            <span class="vital-label">RR</span>
-            <span class="vital-input"></span>
-        </div>
-
-        <div class="vital-group">
-            <span class="vital-label">WT</span>
-            <span class="vital-input"></span>
-
-            <span class="vital-label">HR</span>
-            <span class="vital-input"></span>
-
-            <span class="vital-label">TEMP</span>
-            <span class="vital-input"></span>
-        </div>
-
-    </div>
-
-    <!-- RX -->
-    <div class="rx-title">
-        Medications
-    </div>
-
-    <div class="rx-area">
-
-        <div class="rx-line"></div>
-        <div class="rx-line"></div>
-        <div class="rx-line"></div>
-        <div class="rx-line"></div>
-        <div class="rx-line"></div>
-        <div class="rx-line"></div>
-
-    </div>
-
-    <!-- SIGNATURE -->
-    <div class="signature">
-        <div class="signature-line">
-            Doctor's Signature
-        </div>
-    </div>
-
+<!-- SIGNATURE -->
+<div class="sig-wrap">
+    <div class="sig-line">Doctor's Signature</div>
 </div>
 
 </body>
 </html>
 HTML;
 
-
 $dompdf->loadHtml($html);
-
 $dompdf->setPaper('A4', 'portrait');
-
 $dompdf->render();
-
-$dompdf->stream($patient_name . ".pdf", [
-    "Attachment" => true
-]);
+$dompdf->stream($patient_name . "_Prescription.pdf", ["Attachment" => true]);
 ?>

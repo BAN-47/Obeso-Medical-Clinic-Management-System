@@ -14,6 +14,10 @@ require_once __DIR__ . "/../Class/medications.php";
 require_once __DIR__ . "/../Class/prescribed_medication.php";
 
 $db = (new Database())->connect();
+/* ================= FETCH DOCTORS ================= */
+$doctorStmt = $db->query("SELECT doc_id, doc_fullname FROM doctors ORDER BY doc_fullname");
+$doctors = $doctorStmt->fetchAll(PDO::FETCH_ASSOC);
+
 $checkupObj = new Checkup($db);
 $medObj     = new Medication($db);
 $presObj    = new PrescribedMedication($db);
@@ -201,6 +205,12 @@ function addMedication() {
     </div>
     `);
 }
+
+function fillDoctorFields(select) {
+    const selected = select.options[select.selectedIndex];
+    document.getElementById('doc_id_input').value       = selected.value;
+    document.getElementById('doc_fullname_input').value = selected.getAttribute('data-fullname') || '';
+}
 </script>
 
 <body class="sb-nav-fixed">
@@ -385,9 +395,21 @@ function addMedication() {
     </div>
     <div class="mt-3"><label class="form-label text-muted small">History of Present Illness</label><textarea name="history_present_illness" class="form-control" placeholder="History of Present Illness"></textarea></div>
     <div class="row g-3 mt-3">
-        <div class="col-md-6"><label class="form-label text-muted small">Doctor ID</label><input name="doc_id" class="form-control" placeholder="Doctor ID" required></div>
-        <div class="col-md-6"><label class="form-label text-muted small">Doctor Full Name</label><input name="doc_fullname" class="form-control" placeholder="Doctor Full Name" required></div>
+    <div class="col-md-10 mt-2">
+        <label class="form-label text-muted small">Doctor</label>
+        <select class="form-select" id="doctorDropdown" onchange="fillDoctorFields(this)" required>
+            <option value="">— Select Doctor —</option>
+            <?php foreach ($doctors as $doc): ?>
+                <option value="<?= $doc['doc_id'] ?>"
+                        data-fullname="<?= htmlspecialchars($doc['doc_fullname']) ?>">
+                    <?= htmlspecialchars($doc['doc_fullname']) ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+        <input type="hidden" name="doc_id" id="doc_id_input">
+        <input type="hidden" name="doc_fullname" id="doc_fullname_input">
     </div>
+</div>
 </div>
 </div>
 

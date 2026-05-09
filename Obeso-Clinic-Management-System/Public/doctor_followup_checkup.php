@@ -35,6 +35,16 @@ if (isset($_GET['checkup_id'])) {
     }
 }
 
+/* ================= SEARCH PATIENTS (AJAX) ================= */
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['search_patients'])) {
+    header('Content-Type: application/json');
+    $name = trim($_GET['search_patients']);
+    $stmt = $db->prepare("SELECT patient_id, full_name FROM patients WHERE full_name LIKE ? LIMIT 10");
+    $stmt->execute(["%$name%"]);
+    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+    exit();
+}
+
 /* ================= FETCH PATIENT DETAILS ================= */
 $patient = null;
 if (isset($_GET['patient_id'])) {
@@ -168,8 +178,28 @@ if ($searchDate) {
 <input type="date" class="form-control" name="followup_date" value="<?= date('Y-m-d') ?>" required>
 </div>
 <div class="col-md-6">
-<label class="form-label">Patient Name</label>
-<input type="text" class="form-control" value="<?= htmlspecialchars($patient['full_name'] ?? '') ?>" readonly>
+    <label class="form-label">Patient Name</label>
+    <div class="position-relative">
+        <input type="text" class="form-control" id="patientSearchInput"
+               placeholder="Search patient..."
+               value="<?= htmlspecialchars($patient['full_name'] ?? '') ?>"
+               autocomplete="off"
+               oninput="searchPatients(this.value)">
+        <div id="patientDropdown" style="
+            display:none;
+            position:absolute;
+            z-index:9999;
+            width:100%;
+            background:#fff;
+            border:1px solid #c8d6ec;
+            border-radius:0 0 10px 10px;
+            box-shadow:0 6px 18px rgba(6,46,107,.12);
+            max-height:220px;
+            overflow-y:auto;">
+        </div>
+    </div>
+    <input type="hidden" name="patient_id" id="selectedPatientId"
+           value="<?= $patient['patient_id'] ?? '' ?>">
 </div>
 </div>
 
@@ -281,6 +311,59 @@ elseif ($fu['status'] === 'Missed') $badgeClass = 'bg-danger';
 </div>
 
 <script>
+let patientSearchTimer;
+window._patientList = [];
+
+function searchPatients(val) {
+    clearTimeout(patientSearchTimer);
+    const dropdown = document.getElementById('patientDropdown');
+    if (val.trim().length < 2) {
+        dropdown.style.display = 'none';
+        return;
+    }
+    patientSearchTimer = setTimeout(() => {
+        fetch(window.location.pathname + '?search_patients=' + encodeURIComponent(val.trim()))
+            .then(r => r.json())
+            .then(data => {
+                window._patientList = data;
+                if (!data.length) {
+                    dropdown.innerHTML = `<div style="padding:12px 16px;color:#888;font-style:italic;text-align:center;">
+                        <i class="fa fa-circle-xmark me-1 text-danger"></i>No patient found.</div>`;
+                } else {
+                    dropdown.innerHTML = data.map((p, i) => `
+                        <div onclick="selectPatient(${i})"
+                             style="padding:10px 16px;cursor:pointer;border-bottom:1px solid #eef2fa;
+                                    font-size:.93rem;transition:background .13s;"
+                             onmouseover="this.style.background='#eef2fa'"
+                             onmouseout="this.style.background='#fff'">
+                            <strong style="color:#062e6b;">${p.full_name}</strong>
+                        </div>`).join('');
+                }
+                dropdown.style.display = 'block';
+            })
+            .catch(() => {
+                dropdown.innerHTML = `<div style="padding:12px 16px;color:red;text-align:center;">
+                    <i class="fa fa-triangle-exclamation me-1"></i>Search error.</div>`;
+                dropdown.style.display = 'block';
+            });
+    }, 280);
+}
+
+function selectPatient(index) {
+    const p = window._patientList[index];
+    if (!p) return;
+    document.getElementById('patientSearchInput').value  = p.full_name;
+    document.getElementById('selectedPatientId').value   = p.patient_id;
+    document.getElementById('patientDropdown').style.display = 'none';
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', e => {
+    if (!e.target.closest('#patientSearchInput') && !e.target.closest('#patientDropdown')) {
+        document.getElementById('patientDropdown').style.display = 'none';
+    }
+});
+
 document.addEventListener('DOMContentLoaded', function() {
     const rows = document.querySelectorAll('.followup-row');
     const tbody = document.getElementById('followups-tbody');

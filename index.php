@@ -17,7 +17,7 @@ $conn = $database->connect();
 <script src="https://cdn.tailwindcss.com"></script>
 
 <style>
-  body {
+  body { 
     background: #075179ff;
     background-repeat: no-repeat;
     background-position: left center;
