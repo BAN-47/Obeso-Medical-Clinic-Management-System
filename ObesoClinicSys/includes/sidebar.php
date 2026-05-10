@@ -61,7 +61,7 @@
 
             <a class="nav-link" href="../public/inventory_dashboard.php">
               <div class="sb-nav-link-icon"><i class="fas fa-pills"></i></i></div>
-              Inventory
+             Medicine Inventory
             </a>
 
             <a class="nav-link" href="../public/ActivityLogs.php">

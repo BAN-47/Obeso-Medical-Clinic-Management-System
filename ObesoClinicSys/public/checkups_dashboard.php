@@ -28,9 +28,12 @@ $rows = $checkup->filter($doctor_id, $date);
 
 /* ================= DELETE ================= */
 if (isset($_POST['delete_checkup'])) {
-    $checkup->delete($_POST['checkup_id']);
-    header("Location: admin_checkups.php");
-    exit;
+    if ($checkup->delete($_POST['checkup_id'])) {
+        echo "<script>window.location.href='checkups_dashboard.php';</script>";
+        exit;
+    } else {
+        echo "<script>alert('❌ Error deleting checkup');</script>";
+    }
 }
 ?>
 
