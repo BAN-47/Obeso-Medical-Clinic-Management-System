@@ -103,7 +103,7 @@ $conn = $database->connect();
 
     <!-- Footer -->
     <footer class="mt-10 text-center text-xs text-gray-500">
-      © Obeso's Clinic | All rights reserved | Privacy Policy<br />
+      © 2026 Obeso's Clinic | All rights reserved | Privacy Policy<br />
       Poog, Toledo City
     </footer>
 

@@ -1,5 +1,6 @@
 <?php
 session_start();
+date_default_timezone_set('Asia/Manila');
 require_once "../Config/database.php";
 $db = (new Database())->connect();
 
@@ -146,7 +147,6 @@ function renderQueue(waiting) {
     grid.innerHTML = waiting.map(p => `
         <div class="q-card ${p.priority === 'urgent' ? 'urgent' : ''}">
             <div class="q-num">${esc(p.queue_number)}</div>
-            <div class="q-name">${esc(p.full_name)}</div>
             ${p.priority === 'urgent' ? '<div class="q-badge">Urgent</div>' : ''}
         </div>`).join('');
 }

@@ -518,16 +518,6 @@ tr.row-done td { opacity: .45; }
 <script>
 const SELF = window.location.pathname;
 
-/* Live clock */
-function updateClock() {
-    const d = new Date();
-    document.getElementById('liveClock').textContent =
-        String(d.getHours()).padStart(2,'0') + ':' +
-        String(d.getMinutes()).padStart(2,'0') + ':' +
-        String(d.getSeconds()).padStart(2,'0');
-}
-setInterval(updateClock, 1000); updateClock();
-
 /* Remove modal */
 let _removeQueueId = null;
 function openRemoveModal(id) { _removeQueueId = id; document.getElementById('removeModal').classList.add('show'); }
@@ -667,8 +657,10 @@ function escHtml(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-fetchQueue();
-setInterval(fetchQueue, 15000);
+document.addEventListener('DOMContentLoaded', function() {
+    fetchQueue();
+    setInterval(fetchQueue, 15000);
+});
 </script>
 </body>
 </html>
