@@ -2,30 +2,29 @@
 
 require_once "../config/db.php";
 require_once "../class/medicineInventory.php";
-require_once "../class/medications.php";
+require_once "../class/medications.php"; // To fetch all available medications
 
 $database = new Database();
 $db = $database->connect();
 $inventory = new MedicineInventory($db);
 $medications = new Medications($db);
 
-$rows = $inventory->viewAll();
+$rows = $inventory->viewAll(); // fetch all inventory items
 $lastInventoryID = null;
 
+// -------------------------
+// ADD INVENTORY
+// -------------------------
 if (isset($_POST['add_inventory'])) {
-    $generic_name  = trim($_POST['generic_name']);
-    $brand_name    = trim($_POST['brand_name']);
+    $medication_id = $_POST['medication_id'];
     $quantity      = intval($_POST['quantity']);
     $expiry_date   = $_POST['expiry_date'];
     $reorder_level = intval($_POST['reorder_level']);
 
-    $medStmt = $db->prepare("INSERT INTO medications (generic_name, brand_name) VALUES (?, ?)");
-    $medStmt->execute([$generic_name, $brand_name]);
-    $medication_id = $db->lastInsertId();
-
     if ($inventory->addMedicine($medication_id, $quantity, $expiry_date, $reorder_level)) {
         $lastInventoryID = $db->lastInsertId();
         $rows = $inventory->viewAll();
+
         echo "<script>
             document.addEventListener('DOMContentLoaded', function() {
                 var successModal = new bootstrap.Modal(document.getElementById('successModal'));
@@ -33,7 +32,7 @@ if (isset($_POST['add_inventory'])) {
             });
         </script>";
     } else {
-        echo "<script>alert('Error adding inventory.'); window.location='../public/admin_inventory.php';</script>";
+        echo "<script>alert('❌ Error adding inventory.'); window.location='../public/admin_inventory.php';</script>";
     }
 }
 ?>
@@ -59,13 +58,16 @@ if (isset($_POST['add_inventory'])) {
                     <div class="row g-3">
 
                         <div class="col-md-6">
-                            <label class="form-label">Generic Name</label>
-                            <input type="text" class="form-control" name="generic_name" placeholder="e.g. Amoxicillin" required>
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Brand Name</label>
-                            <input type="text" class="form-control" name="brand_name" placeholder="e.g. Amoxil" required>
+                            <label class="form-label">Medicine</label>
+                            <select class="form-select" name="medication_id" required>
+                                <option value="">-- Select Medicine --</option>
+                                <?php
+                                $allMeds = $medications->getAllMedications();
+                                foreach ($allMeds as $med) {
+                                    echo "<option value='{$med['medication_id']}'>{$med['generic_name']} ({$med['brand_name']})</option>";
+                                }
+                                ?>
+                            </select>
                         </div>
 
                         <div class="col-md-3">
@@ -107,7 +109,7 @@ if (isset($_POST['add_inventory'])) {
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p>Medicine inventory added successfully!</p>
+                <p>✅ Medicine inventory added successfully!</p>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>

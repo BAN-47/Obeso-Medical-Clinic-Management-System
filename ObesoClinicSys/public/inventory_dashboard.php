@@ -43,7 +43,6 @@ if (isset($_POST['update_inventory'])) {
         echo "<script>alert('❌ Error updating inventory');</script>";
     }
 }
-
 ?>
 
 <main>
@@ -95,11 +94,11 @@ if (isset($_POST['update_inventory'])) {
                         <td><?= htmlspecialchars($row['quantity']) ?></td>
                         <td><?= htmlspecialchars($row['expiry_date']) ?></td>
                         <td><?= $status ?></td>
-                        <td>
-                            <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal<?= $row['inventory_id'] ?>">
-                                <i class="fas fa-edit"></i> Edit
-                            </button>
-                        </td>
+                    <td>
+                        <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal<?= $row['inventory_id'] ?>">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                    </td>
                     </tr>
 
                     <!-- EDIT MODAL -->
