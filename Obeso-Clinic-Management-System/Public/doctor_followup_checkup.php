@@ -10,8 +10,10 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'doctor') {
 /* ================= DATABASE ================= */
 require_once "../Config/database.php";
 require_once __DIR__ . "/../Class/followups.php";
+require_once __DIR__ . "/../Class/Prediction.php";
 $db = (new Database())->connect();
 $followups = new Followups($db);
+$predictor = new Prediction();
 
 /* ================= FETCH ORIGINAL CHECKUP DETAILS ================= */
 $originalCheckup = null;
@@ -52,6 +54,11 @@ if (isset($_GET['patient_id'])) {
     $patientStmt = $db->prepare("SELECT * FROM patients WHERE patient_id = ?");
     $patientStmt->execute([$patient_id]);
     $patient = $patientStmt->fetch(PDO::FETCH_ASSOC);
+}
+
+$predictionInsight = null;
+if ($originalCheckup) {
+    $predictionInsight = $predictor->predictFromCheckup($originalCheckup);
 }
 
 /* ================= HANDLE FORM SUBMISSION (CREATE FOLLOW-UP) ================= */
@@ -140,6 +147,34 @@ window.addEventListener('load', function() {
 
 <!-- ================= ORIGINAL CHECKUP DETAILS ================= -->
 <?php if ($originalCheckup): ?>
+    <?php if ($predictionInsight): ?>
+        <div class="card shadow mb-4 border-start border-4 border-warning">
+            <div class="card-body">
+                <?php if (!empty($predictionInsight['error'])): ?>
+                    <div class="alert alert-warning mb-0">
+                        <strong>AI Insight:</strong> <?= htmlspecialchars($predictionInsight['message']) ?>
+                    </div>
+                <?php else: ?>
+                    <div class="alert alert-info mb-0">
+                        <h5 class="mb-2"><i class="fa fa-lightbulb"></i> Predicted future illness</h5>
+                        <p class="mb-1">
+                            <strong><?= htmlspecialchars($predictionInsight['disease']) ?></strong>
+                            <span class="badge bg-secondary ms-2"><?= round($predictionInsight['confidence'], 1) ?>% confidence</span>
+                        </p>
+                        <?php if (!empty($predictionInsight['top3'])): ?>
+                            <small class="text-muted">Top possible outcomes:</small>
+                            <ul class="mb-0 ps-3">
+                                <?php foreach ($predictionInsight['top3'] as $item): ?>
+                                    <li><?= htmlspecialchars($item['disease']) ?> (<?= round($item['confidence'], 1) ?>%)</li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
+                        <p class="text-muted small mb-0">This insight is generated from the patient’s past records and current checkup data.</p>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    <?php endif; ?>
 <div class="card shadow mb-4">
 <div class="section-header">
 <i class="fa fa-stethoscope me-2"></i> Original Checkup Details (<?= $originalCheckup['checkup_date'] ?>)
