@@ -38,11 +38,9 @@ if (isset($_POST['add_inventory'])) {
 ?>
 
 <!-- BUTTON TO OPEN ADD INVENTORY MODAL -->
-<div class="mb-3">
-    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal">
-        <i class="fa-solid fa-pills"></i> Add New Inventory
-    </button>
-</div>
+<button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal">
+    <i class="fa-solid fa-pills"></i> Add New Inventory
+</button>
 
 <!-- ADD INVENTORY MODAL -->
 <div class="modal fade" id="addModal" tabindex="-1">
