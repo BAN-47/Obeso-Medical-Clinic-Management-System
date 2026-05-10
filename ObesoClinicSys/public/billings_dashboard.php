@@ -82,14 +82,14 @@ require_once "../includes/sidebar.php";
                     <td>
                         <!-- EDIT -->
                         <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal<?= $row['bill_id'] ?>">
-                            <i class="fas fa-edit"></i>
+                            <i class="fas fa-edit"></i> Edit
                         </button>
 
                         <!-- DELETE -->
                         <form method="POST" class="d-inline" onsubmit="return confirm('Delete this billing record?')">
                             <input type="hidden" name="bill_id" value="<?= $row['bill_id'] ?>">
                             <button name="delete_billing" class="btn btn-danger btn-sm">
-                                <i class="fas fa-trash"></i>
+                                <i class="fas fa-trash"></i> Delete
                             </button>
                         </form>
                     </td>

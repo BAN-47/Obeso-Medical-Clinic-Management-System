@@ -56,20 +56,26 @@ if (isset($_GET['patient_id'])) {
 
 /* ================= HANDLE FORM SUBMISSION (CREATE FOLLOW-UP) ================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['followup_date'])) {
-    $data = [
-        'patient_id' => (int)$_POST['patient_id'],
-        'doc_id' => $_SESSION['doc_id'] ?? 1, // Assuming doc_id in session
-        'checkup_id' => !empty($_POST['checkup_id']) ? (int)$_POST['checkup_id'] : null,
-        'followup_date' => $_POST['followup_date'],
-        'notes' => $_POST['notes'],
-        'status' => $_POST['status'] ?? 'Pending'
-    ];
+    $patient_id = (int)$_POST['patient_id']; // grab it first
 
-    if ($followups->create($data)) {
-        header("Location: doctor_followup_checkup.php?patient_id=" . $patient_id . "&checkup_id=" . ($originalCheckup['checkup_id'] ?? '') . "&success=1");
-        exit();
+    if ($patient_id <= 0) {
+        $error = "Please select a valid patient.";
     } else {
-        $error = "Failed to save follow-up.";
+        $data = [
+            'patient_id' => $patient_id,
+            'doc_id'     => $_SESSION['doc_id'] ?? 1,
+            'checkup_id' => !empty($_POST['checkup_id']) ? (int)$_POST['checkup_id'] : null,
+            'followup_date' => $_POST['followup_date'],
+            'notes'      => $_POST['notes'],
+            'status'     => $_POST['status'] ?? 'Pending'
+        ];
+
+        if ($followups->create($data)) {
+            header("Location: doctor_followup_checkup.php?patient_id=" . $patient_id . "&checkup_id=" . ($originalCheckup['checkup_id'] ?? '') . "&success=1");
+            exit();
+        } else {
+            $error = "Failed to save follow-up.";
+        }
     }
 }
 
@@ -90,6 +96,7 @@ if ($searchDate) {
 <title>Obeso's Clinic Management System</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <link href="../Includes/sidebarStyle.css" rel="stylesheet">
 <style>
 .section-header { background:#062e6b; color:#fff; padding:12px 18px; border-radius:14px 14px 0 0; }
@@ -114,7 +121,17 @@ if ($searchDate) {
 <h3 class="mb-4"><i class="fa fa-plus-circle"></i> Create Follow-Up</h3>
 
 <?php if (isset($_GET['success'])): ?>
-<div class="alert alert-success">Follow-up created successfully!</div>
+<script>
+window.addEventListener('load', function() {
+    Swal.fire({
+        icon: 'success',
+        title: 'Follow-Up Saved!',
+        text: 'The follow-up has been created successfully.',
+        confirmButtonColor: '#062e6b',
+        confirmButtonText: 'OK'
+    });
+});
+</script>
 <?php endif; ?>
 
 <?php if (isset($error)): ?>
@@ -169,7 +186,6 @@ if ($searchDate) {
 </div>
 <div class="card-body">
 <form method="POST" action="">
-<input type="hidden" name="patient_id" value="<?= $patient['patient_id'] ?? '' ?>">
 <input type="hidden" name="checkup_id" value="<?= $originalCheckup['checkup_id'] ?? '' ?>">
 
 <div class="row g-3">
@@ -199,7 +215,7 @@ if ($searchDate) {
         </div>
     </div>
     <input type="hidden" name="patient_id" id="selectedPatientId"
-           value="<?= $patient['patient_id'] ?? '' ?>">
+       value="<?= $patient['patient_id'] ?? '' ?>">
 </div>
 </div>
 
@@ -222,8 +238,10 @@ if ($searchDate) {
 </div>
 
 <div class="mt-4 text-end">
-<button type="submit" class="btn btn-primary"><i class="fa fa-save"></i> Save Follow-Up</button>
-<a href="doctor_medical_records_management.php?patient_id=<?= $patient['patient_id'] ?>" class="btn btn-secondary">Cancel</a>
+    <button type="submit" class="btn btn-primary" id="saveFollowUpBtn">
+        <i class="fa fa-save"></i> Save Follow-Up
+    </button>
+    <a href="doctor_medical_records_management.php?patient_id=<?= $patient['patient_id'] ?>" class="btn btn-secondary">Cancel</a>
 </div>
 </form>
 </div>
@@ -383,33 +401,67 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function updatePagination(page) {
         paginationList.innerHTML = '';
+
         const prevLi = document.createElement('li');
         prevLi.className = `page-item ${page <= 1 ? 'disabled' : ''}`;
-        prevLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${page - 1})">Previous</a>`;
+        const prevA = document.createElement('a');
+        prevA.className = 'page-link';
+        prevA.href = '#';
+        prevA.textContent = 'Previous';
+        prevA.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (page > 1) { currentPage = page - 1; showPage(currentPage); }
+        });
+        prevLi.appendChild(prevA);
         paginationList.appendChild(prevLi);
 
         for (let i = 1; i <= totalPages; i++) {
             const li = document.createElement('li');
             li.className = `page-item ${i === page ? 'active' : ''}`;
-            li.innerHTML = `<a class="page-link" href="#" onclick="changePage(${i})">${i}</a>`;
+            const a = document.createElement('a');
+            a.className = 'page-link';
+            a.href = '#';
+            a.textContent = i;
+            const pageNum = i;
+            a.addEventListener('click', function(e) {
+                e.preventDefault();
+                currentPage = pageNum;
+                showPage(currentPage);
+            });
+            li.appendChild(a);
             paginationList.appendChild(li);
         }
 
         const nextLi = document.createElement('li');
         nextLi.className = `page-item ${page >= totalPages ? 'disabled' : ''}`;
-        nextLi.innerHTML = `<a class="page-link" href="#" onclick="changePage(${page + 1})">Next</a>`;
+        const nextA = document.createElement('a');
+        nextA.className = 'page-link';
+        nextA.href = '#';
+        nextA.textContent = 'Next';
+        nextA.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (page < totalPages) { currentPage = page + 1; showPage(currentPage); }
+        });
+        nextLi.appendChild(nextA);
         paginationList.appendChild(nextLi);
     }
 
-    window.changePage = function(page) {
-        if (page >= 1 && page <= totalPages) {
-            currentPage = page;
-            showPage(page);
-        }
-    };
-
     if (rows.length > 0) {
         showPage(currentPage);
+    }
+});
+
+document.querySelector('form[method="POST"]').addEventListener('submit', function(e) {
+    const patientId = document.getElementById('selectedPatientId').value;
+    if (!patientId || patientId == 0) {
+        e.preventDefault();
+        Swal.fire({
+            icon: 'warning',
+            title: 'No Patient Selected',
+            text: 'Please search and select a patient before saving.',
+            confirmButtonColor: '#062e6b'
+        });
+        return;
     }
 });
 </script>

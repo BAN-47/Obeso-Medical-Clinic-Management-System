@@ -131,10 +131,9 @@ if (isset($_POST['update_patient'])) {
                   <td><?= htmlspecialchars($row['contact_number']) ?></td>
                   <td>
                     <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal<?= $row['patient_id'] ?>">
-                      <i class="fas fa-edit"></i>
+                        <i class="fas fa-edit"></i> Edit
                     </button>
-                  </td>
-                  
+                </td>   
                 </tr>
 
                 <!-- EDIT MODAL -->

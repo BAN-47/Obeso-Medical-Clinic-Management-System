@@ -89,7 +89,7 @@ if (isset($_POST['delete_followup'])) {
                                         <button class="btn btn-sm btn-warning"
                                             data-bs-toggle="modal"
                                             data-bs-target="#edit<?= $row['followup_id'] ?>">
-                                            <i class="fas fa-edit"></i>
+                                            <i class="fas fa-edit"></i> Edit
                                         </button>
 
                                         <form method="POST" class="d-inline"
@@ -98,7 +98,7 @@ if (isset($_POST['delete_followup'])) {
                                                 value="<?= $row['followup_id'] ?>">
                                             <button name="delete_followup"
                                                 class="btn btn-sm btn-danger">
-                                                <i class="fas fa-trash"></i>
+                                                <i class="fas fa-trash"></i> Delete
                                             </button>
                                         </form>
                                     </td>

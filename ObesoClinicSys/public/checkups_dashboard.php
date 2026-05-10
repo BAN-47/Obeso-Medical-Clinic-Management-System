@@ -77,23 +77,23 @@ if (isset($_POST['delete_checkup'])) {
                 <button class="btn btn-sm btn-info"
                         data-bs-toggle="modal"
                         data-bs-target="#viewModal<?= $row['checkup_id'] ?>">
-                  <i class="fas fa-eye"></i>
+                    <i class="fas fa-eye"></i> View
                 </button>
 
                 <!-- DELETE -->
                 <form method="POST"
                       class="d-inline"
                       onsubmit="return confirm('Delete this checkup record?')">
-                  <input type="hidden"
-                         name="checkup_id"
-                         value="<?= $row['checkup_id'] ?>">
-                  <button type="submit"
-                          name="delete_checkup"
-                          class="btn btn-sm btn-danger">
-                    <i class="fas fa-trash"></i>
-                  </button>
+                    <input type="hidden"
+                          name="checkup_id"
+                          value="<?= $row['checkup_id'] ?>">
+                    <button type="submit"
+                            name="delete_checkup"
+                            class="btn btn-sm btn-danger">
+                        <i class="fas fa-trash"></i> Delete
+                    </button>
                 </form>
-              </td>
+            </td>
             </tr>
 
             <!-- ================= VIEW MODAL ================= -->

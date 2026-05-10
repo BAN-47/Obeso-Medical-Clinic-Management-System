@@ -52,7 +52,7 @@ public function create($username, $password, $staff_id = null, $doc_id = null) {
                 FROM users u
                 LEFT JOIN staff s ON u.staff_id = s.staff_id
                 LEFT JOIN doctors d ON u.doc_id = d.doc_id
-                ORDER BY u.user_created_at DESC";
+                ORDER BY u.user_created_at ASC";
         return $this->conn->query($sql)->fetchAll(PDO::FETCH_ASSOC);
     }
 

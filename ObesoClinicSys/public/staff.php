@@ -90,16 +90,16 @@ if (isset($_GET['delete'])) {
                   <td><?= htmlspecialchars($row['staff_contact_num']) ?></td>
                   <td><?= htmlspecialchars($row['staff_email']) ?></td>
                   <td>
-                    <!-- EDIT BUTTON -->
-                    <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal<?= $row['staff_id'] ?>">
-                      <i class="fas fa-edit"></i>
-                    </button>
+                      <!-- EDIT BUTTON -->
+                      <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal<?= $row['staff_id'] ?>">
+                          <i class="fas fa-edit"></i> Edit
+                      </button>
 
-                    <!-- DELETE BUTTON -->
-                    <a href="?delete=<?= $row['staff_id'] ?>" class="btn btn-sm btn-danger"
-                      onclick="return confirm('Are you sure you want to delete this staff?');">
-                      <i class="fas fa-trash-alt"></i>
-                    </a>
+                      <!-- DELETE BUTTON -->
+                      <a href="?delete=<?= $row['staff_id'] ?>" class="btn btn-sm btn-danger"
+                          onclick="return confirm('Are you sure you want to delete this staff?');">
+                          <i class="fas fa-trash-alt"></i> Delete
+                      </a>
                   </td>
                 </tr>
 

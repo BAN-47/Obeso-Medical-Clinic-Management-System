@@ -84,14 +84,14 @@ $users = $user->all();
                                     <button class="btn btn-sm btn-warning"
                                         data-bs-toggle="modal"
                                         data-bs-target="#reset<?= $u['user_id'] ?>">
-                                        <i class="fas fa-key"></i>
+                                        <i class="fas fa-key"></i> Reset
                                     </button>
 
                                     <!-- ENABLE / DISABLE -->
                                     <a href="?toggle=<?= $u['user_id'] ?>&status=<?= $u['user_is_active'] ? 0 : 1 ?>"
                                         class="btn btn-sm btn-secondary"
                                         onclick="return confirm('Are you sure?')">
-                                        <i class="fas fa-power-off"></i>
+                                        <i class="fas fa-power-off"></i> <?= $u['user_is_active'] ? 'Disable' : 'Enable' ?>
                                     </a>
                                 </td>
                             </tr>
