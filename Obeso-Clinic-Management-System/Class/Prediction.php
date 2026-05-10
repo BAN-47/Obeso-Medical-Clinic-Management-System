@@ -15,6 +15,7 @@ class Prediction
         }
 
         $payload = [
+            'patient_id' => $checkup['patient_id'] ?? '',
             'chief_complaint' => $checkup['chief_complaint'] ?? '',
             'history_present_illness' => $checkup['history_present_illness'] ?? '',
             'blood_pressure' => $checkup['blood_pressure'] ?? '',
