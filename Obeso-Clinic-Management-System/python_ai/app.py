@@ -4,12 +4,24 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 import os
+import logging
 
 app = Flask(__name__)
 CORS(app)
 
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-df = pd.read_csv("./Obeso-Clinic-Management-System/python_ai/disease_data.csv")
+base_dir = os.path.dirname(os.path.abspath(__file__))
+dataset_path = os.path.join(base_dir, "disease_data.csv")
+
+if not os.path.exists(dataset_path):
+    raise FileNotFoundError(f"Dataset not found: {dataset_path}")
+
+logger.info(f"Loading dataset from {dataset_path}")
+
+df = pd.read_csv(dataset_path)
 
 SYMPTOMS = ['fever', 'cough', 'headache', 'fatigue',
             'body_pain', 'sore_throat', 'vomiting', 'diarrhea']
@@ -62,7 +74,6 @@ def predict():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=8000, debug=True)

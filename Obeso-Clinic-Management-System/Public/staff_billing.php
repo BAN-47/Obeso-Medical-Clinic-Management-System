@@ -115,7 +115,7 @@ $sql = "
         b.*, 
         p.full_name, 
         d.doc_fullname,
-        b.checkup_date
+        c.checkup_date
     FROM billing b
     JOIN patients p ON p.patient_id = b.patient_id
     JOIN doctors d ON d.doc_id = b.doc_id
