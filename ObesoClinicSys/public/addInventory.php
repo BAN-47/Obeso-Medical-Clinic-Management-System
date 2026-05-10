@@ -32,7 +32,7 @@ if (isset($_POST['add_inventory'])) {
             });
         </script>";
     } else {
-        echo "<script>alert('❌ Error adding inventory.'); window.location='../public/admin_inventory.php';</script>";
+        echo "<script>alert('Error adding inventory.'); window.location='../public/admin_inventory.php';</script>";
     }
 }
 ?>
