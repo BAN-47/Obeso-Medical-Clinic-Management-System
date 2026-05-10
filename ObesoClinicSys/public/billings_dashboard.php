@@ -25,14 +25,14 @@ if (isset($_POST['update_billing'])) {
     $method = $_POST['payment_method'];
 
     $billing->update($bill_id, $status, $method);
-    header("Location: billings_dashboard.php"); // Must be before HTML output
+        echo "<script>window.location.href='billings_dashboard.php';</script>";
     exit;
 }
 
 /* ================= DELETE BILLING ================= */
 if (isset($_POST['delete_billing'])) {
     $billing->delete($_POST['bill_id']);
-    header("Location: billings_dashboard.php"); // Must be before HTML output
+    echo "<script>window.location.href='billings_dashboard.php';</script>";
     exit;
 }
 
