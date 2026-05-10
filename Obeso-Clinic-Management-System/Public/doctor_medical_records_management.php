@@ -65,6 +65,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
                 $presObj->add(
                     $checkup_id,
                     $med_id,
+                    $_POST['generic_name'][$i],
+                    $_POST['brand_name'][$i] ?? null,
                     $_POST['dose'][$i] ?? null,
                     $_POST['amount'][$i] ?? null,
                     $_POST['frequency'][$i] ?? null,
@@ -162,10 +164,8 @@ if (isset($_GET['patient_id'])) {
     foreach ($checkups as $i => $c) {
 
         $mstmt = $db->prepare("
-            SELECT pm.*, m.generic_name, m.brand_name
+            SELECT pm.*
             FROM prescribed_medications pm
-            INNER JOIN medications m 
-                ON pm.medication_id = m.medication_id
             WHERE pm.checkup_id = ?
         ");
 
@@ -210,6 +210,12 @@ function fillDoctorFields(select) {
     const selected = select.options[select.selectedIndex];
     document.getElementById('doc_id_input').value       = selected.value;
     document.getElementById('doc_fullname_input').value = selected.getAttribute('data-fullname') || '';
+}
+
+function confirmSave() {
+    if (confirm("Are you sure you want to save this record?\n\nThis action is permanent and cannot be undone.")) {
+        document.getElementById('newRecordForm').submit();
+    }
 }
 </script>
 
@@ -300,6 +306,7 @@ function fillDoctorFields(select) {
 <div class="modal-body">
 <form method="POST" id="newRecordForm">
 <input type="hidden" name="patient_id" value="<?= $patient['patient_id'] ?>">
+<input type="hidden" name="save_all" value="1">
 
 <!-- Patient Info (read-only) + Chief Complaint + Vitals -->
 <div class="card mb-4 shadow-sm">
@@ -328,13 +335,7 @@ function fillDoctorFields(select) {
         <div class="row g-2">
            <div class="col">
     <label class="form-label text-muted small">BP</label>
-    <input
-        name="blood_pressure"
-        class="form-control text-center"
-        placeholder="BP"
-        readonly
-        value="<?= htmlspecialchars($pendingCheckup['blood_pressure'] ?? '') ?>"
-    >
+    <input name="blood_pressure" class="form-control text-center" placeholder="BP" value="<?= htmlspecialchars($pendingCheckup['blood_pressure'] ?? '') ?>">
 </div>
 
 <div class="col">
@@ -429,7 +430,7 @@ function fillDoctorFields(select) {
 
 <div class="modal-footer">
     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-    <button type="submit" form="newRecordForm" name="save_all" class="btn btn-primary">
+    <button type="button" class="btn btn-primary" onclick="confirmSave()">
         <i class="fa-solid fa-floppy-disk me-1"></i> Save Record
     </button>
 </div>
@@ -517,8 +518,8 @@ Checkup — <?= $c['checkup_date'] ?> (Doctor: <?= htmlspecialchars($c['doc_full
 <tbody>
 <?php foreach ($c['medications'] as $m): ?>
 <tr>
-<td><?= htmlspecialchars($m['generic_name']) ?></td>
-<td><?= htmlspecialchars($m['brand_name']) ?></td>
+<td><?= htmlspecialchars($m['pres_generic_name']) ?></td>
+<td><?= htmlspecialchars($m['pres_brand_name']) ?></td>
 <td><?= htmlspecialchars($m['dose']) ?></td>
 <td><?= htmlspecialchars($m['amount']) ?></td>
 <td><?= htmlspecialchars($m['frequency']) ?></td>
