@@ -147,6 +147,7 @@ window.addEventListener('load', function() {
 
 <!-- ================= ORIGINAL CHECKUP DETAILS ================= -->
 <?php if ($originalCheckup): ?>
+    <!-- PATIENT PREDICTION INSIGHT -->
     <?php if ($predictionInsight): ?>
         <div class="card shadow mb-4 border-start border-4 border-warning">
             <div class="card-body">
