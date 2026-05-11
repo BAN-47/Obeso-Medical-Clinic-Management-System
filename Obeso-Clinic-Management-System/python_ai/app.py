@@ -285,6 +285,7 @@ def load_training_data():
 def train_model():
     X, y = load_training_data()
 
+<<<<<<< HEAD
     # FIX FOR YOUR ERROR:
     # Count smallest class size
     class_counts = y.value_counts()
@@ -292,6 +293,11 @@ def train_model():
 
     logger.info(f"Class counts:\n{class_counts}")
 
+=======
+    # Make a smart decision tree with better tuning to prevent overfitting
+    # max_depth=5 prevents the tree from becoming too complex and overfitting
+    # min_samples_split=5 means each split must have at least 5 samples
+>>>>>>> 708bbbde0eb704114aa3eca4da467d88e01c6ff1
     base_model = DecisionTreeClassifier(
         random_state=42,
         max_depth=5,
@@ -300,6 +306,7 @@ def train_model():
         class_weight='balanced'
     )
 
+<<<<<<< HEAD
     # If there are enough samples, use calibration
     if min_class_count >= 2:
 
@@ -323,6 +330,28 @@ def train_model():
 
         model = base_model
 
+=======
+    # Avoid requesting more CV folds than the smallest class size
+    min_class_count = y.value_counts().min()
+    cv = min(5, min_class_count)
+    if cv < 2:
+        logger.warning(
+            "Not enough examples per class for calibration cross-validation. Training without calibrated probabilities."
+        )
+        base_model.fit(X, y)
+        logger.info(f"Trained Decision Tree on {len(X)} patient records")
+        return base_model
+
+    if cv < 5:
+        logger.warning(
+            f"Using {cv}-fold calibration because some classes have fewer than 5 examples."
+        )
+
+    # Wrap with CalibratedClassifierCV for better probability calibration
+    model = CalibratedClassifierCV(base_model, method='sigmoid', cv=cv)
+
+    # Teach the tree with the data
+>>>>>>> 708bbbde0eb704114aa3eca4da467d88e01c6ff1
     model.fit(X, y)
 
     logger.info(f"Trained model on {len(X)} patient records")
