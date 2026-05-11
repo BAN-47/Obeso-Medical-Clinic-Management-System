@@ -318,7 +318,7 @@ window.addEventListener('load', function() {
 <div class="card border-0 bg-light">
 <div class="card-body">
 <h6 class="card-title">
-<span class="badge bg-success">#{($index + 1)}</span>
+<span class="badge bg-success">#<?= $index + 1 ?></span>
 <?= htmlspecialchars($illness['disease']) ?>
 </h6>
 <p class="mb-2">

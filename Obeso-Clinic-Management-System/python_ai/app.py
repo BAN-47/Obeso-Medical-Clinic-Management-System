@@ -449,63 +449,56 @@ def get_future_illnesses():
         if not patient_id:
             return jsonify({"error": "Patient ID required"}), 400
         
-        # Query past checkups for this patient
-        conn = connect_db()
-        past_query = """
-        SELECT diagnosis, checkup_date 
-        FROM checkups
-        WHERE patient_id = %s
-        ORDER BY checkup_date DESC
-        LIMIT 20
-        """
-        past_df = pd.read_sql(past_query, conn, params=[patient_id])
-        conn.close()
-        
-        if past_df.empty:
-            return jsonify({
-                "patient_id": patient_id,
-                "future_illnesses": [],
-                "message": "No past medical history found"
-            })
-        
-        # Count the frequency of each diagnosis from past checkups
-        diagnosis_counts = past_df['diagnosis'].value_counts().head(10)
-        
-        # Get all possible diagnoses from the training data
-        X, y = load_training_data()
-        all_diagnoses = set(y.unique())
-        
-        # Predict what illnesses might occur based on common past patterns
-        # Create a list of likely future illnesses
         future_illnesses = []
+        past_df = pd.DataFrame()  # Initialize empty dataframe
         
-        # Add diagnoses that appeared in the patient's history
-        for diagnosis, count in diagnosis_counts.items():
-            if diagnosis and diagnosis != 'None':
-                frequency_score = (count / len(past_df)) * 100
-                future_illnesses.append({
-                    "disease": diagnosis,
-                    "likelihood": round(frequency_score, 1),
-                    "reason": f"Recurring condition (appeared {int(count)} times in history)"
-                })
+        # Query past checkups for this patient
+        try:
+            conn = connect_db()
+            past_query = """
+            SELECT diagnosis, checkup_date 
+            FROM checkups
+            WHERE patient_id = %s AND diagnosis IS NOT NULL AND diagnosis != ''
+            ORDER BY checkup_date DESC
+            LIMIT 20
+            """
+            past_df = pd.read_sql(past_query, conn, params=[patient_id])
+            conn.close()
+            
+            if not past_df.empty:
+                # Count the frequency of each diagnosis from past checkups
+                diagnosis_counts = past_df['diagnosis'].value_counts()
+                
+                # Add diagnoses that appeared in the patient's history
+                for diagnosis, count in diagnosis_counts.head(10).items():
+                    if diagnosis and str(diagnosis).strip().lower() != 'none':
+                        frequency_score = (count / len(past_df)) * 100
+                        future_illnesses.append({
+                            "disease": str(diagnosis).strip(),
+                            "likelihood": round(min(frequency_score * 1.5, 100), 1),  # Boost recurring conditions
+                            "reason": f"Recurring condition (appeared {int(count)} times)"
+                        })
+        except Exception as e:
+            logger.warning(f"Error fetching patient history: {e}")
         
-        # If we have room, add common diseases from the training data
+        # If we don't have enough predictions, add common diseases from the training data
         if len(future_illnesses) < 3:
-            # Get diseases from the disease_data.csv and count frequency
             try:
-                disease_df = pd.read_csv(CSV_PATH)
-                if 'disease' in disease_df.columns:
-                    disease_counts = disease_df['disease'].value_counts()
-                    for disease, count in disease_counts.items():
-                        if disease not in [ill['disease'] for ill in future_illnesses]:
-                            general_likelihood = (count / len(disease_df)) * 100
-                            future_illnesses.append({
-                                "disease": disease,
-                                "likelihood": round(general_likelihood, 1),
-                                "reason": "Common disease in general population"
-                            })
-                        if len(future_illnesses) >= 3:
-                            break
+                if os.path.exists(CSV_PATH):
+                    disease_df = pd.read_csv(CSV_PATH)
+                    if 'disease' in disease_df.columns:
+                        # Get most common diseases from the dataset
+                        disease_counts = disease_df['disease'].value_counts()
+                        existing_diseases = {ill['disease'] for ill in future_illnesses}
+                        
+                        for disease, count in disease_counts.items():
+                            if disease not in existing_diseases and len(future_illnesses) < 3:
+                                general_likelihood = (count / len(disease_df)) * 100
+                                future_illnesses.append({
+                                    "disease": str(disease).strip(),
+                                    "likelihood": round(general_likelihood * 0.8, 1),  # General population diseases
+                                    "reason": "Common disease in general population"
+                                })
             except Exception as e:
                 logger.warning(f"Could not load disease data: {e}")
         
@@ -515,12 +508,13 @@ def get_future_illnesses():
         return jsonify({
             "patient_id": patient_id,
             "future_illnesses": future_illnesses,
-            "total_past_checkups": len(past_df)
+            "total_past_checkups": len(past_df) if not past_df.empty else 0,
+            "message": "Success" if future_illnesses else "No predictions available"
         })
         
     except Exception as e:
         logger.exception("Future illnesses prediction error")
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": str(e), "patient_id": data.get('patient_id')}), 500
 
 
 if __name__ == "__main__":
