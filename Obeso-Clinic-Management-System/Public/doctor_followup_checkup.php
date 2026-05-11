@@ -340,8 +340,6 @@ window.addEventListener('load', function() {
 </div>
 <?php endif; ?>
 
-<?php include "aiprediction.php"; ?>
-
 <!-- ================= FOLLOW-UP FORM ================= -->
 <div class="card shadow mb-4" style="margin-top: -40px;">
 <div class="section-header">

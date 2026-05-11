@@ -216,6 +216,7 @@ def load_training_data():
 def train_model():
     # Get the training data
     X, y = load_training_data()
+
     # Make a smart decision tree with better tuning to prevent overfitting
     # max_depth=5 prevents the tree from becoming too complex and overfitting
     # min_samples_split=5 means each split must have at least 5 samples
@@ -226,10 +227,26 @@ def train_model():
         min_samples_leaf=2,  # Require at least 2 samples per leaf
         class_weight='balanced'  # Handle class imbalance
     )
-    
+
+    # Avoid requesting more CV folds than the smallest class size
+    min_class_count = y.value_counts().min()
+    cv = min(5, min_class_count)
+    if cv < 2:
+        logger.warning(
+            "Not enough examples per class for calibration cross-validation. Training without calibrated probabilities."
+        )
+        base_model.fit(X, y)
+        logger.info(f"Trained Decision Tree on {len(X)} patient records")
+        return base_model
+
+    if cv < 5:
+        logger.warning(
+            f"Using {cv}-fold calibration because some classes have fewer than 5 examples."
+        )
+
     # Wrap with CalibratedClassifierCV for better probability calibration
-    model = CalibratedClassifierCV(base_model, method='sigmoid', cv=5)
-    
+    model = CalibratedClassifierCV(base_model, method='sigmoid', cv=cv)
+
     # Teach the tree with the data
     model.fit(X, y)
     
