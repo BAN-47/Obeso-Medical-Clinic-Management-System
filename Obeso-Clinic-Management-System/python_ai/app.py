@@ -2,9 +2,12 @@ from flask import Flask, request, jsonify  # Import tools to make a web server
 from flask_cors import CORS  # Allow the web server to talk to other websites
 import pandas as pd  # Import a tool to work with data like spreadsheets
 from sklearn.tree import DecisionTreeClassifier  # Import the smart tree that guesses illnesses
+from sklearn.calibration import CalibratedClassifierCV  # For better probability calibration
+from sklearn.preprocessing import LabelEncoder  # For encoding categorical data
 import mysql.connector  # Import tool to talk to the database
 import logging  # Import tool to write messages about what's happening
 import os  # Import tool to work with file paths
+import numpy as np  # For numerical operations
 
 app = Flask(__name__)  # Make a new web server
 CORS(app)  # Let the server talk to the clinic website
@@ -213,15 +216,25 @@ def load_training_data():
 def train_model():
     # Get the training data
     X, y = load_training_data()
-    # Make a smart decision tree
-    # The tree learns by asking yes/no questions about the clues
-    # It tries to group similar sicknesses together
-    # max_depth=8 means the tree won't get too tall (prevents guessing too much)
-    model = DecisionTreeClassifier(random_state=42, max_depth=8)
+    # Make a smart decision tree with better tuning to prevent overfitting
+    # max_depth=5 prevents the tree from becoming too complex and overfitting
+    # min_samples_split=5 means each split must have at least 5 samples
+    base_model = DecisionTreeClassifier(
+        random_state=42, 
+        max_depth=5,  # Reduced from 8 to prevent overfitting and 100% confidence
+        min_samples_split=5,  # Require at least 5 samples per split
+        min_samples_leaf=2,  # Require at least 2 samples per leaf
+        class_weight='balanced'  # Handle class imbalance
+    )
+    
+    # Wrap with CalibratedClassifierCV for better probability calibration
+    model = CalibratedClassifierCV(base_model, method='sigmoid', cv=5)
+    
     # Teach the tree with the data
     model.fit(X, y)
+    
     # Write a message saying the tree is ready
-    logger.info(f"Trained Decision Tree on {len(X)} patient records")
+    logger.info(f"Trained Calibrated Decision Tree on {len(X)} patient records")
     return model
 
 
@@ -392,27 +405,29 @@ def predict():
         # Ask the smart tree to guess the sickness
         prediction = model.predict(input_data)[0]
 
-        # Get how sure the tree is about each guess
-        if hasattr(model, 'predict_proba'):
-            probabilities = model.predict_proba(input_data)[0]
-            classes = model.classes_
-            # Make a list of sicknesses with how sure the tree is
-            scores = {
-                disease: round(float(prob) * 100, 1)
-                for disease, prob in zip(classes, probabilities)
-            }
-        else:
-            # If no sure-ness info, just say 100% for the guess
-            scores = {prediction: 100.0}
+        # Get how sure the tree is about each guess - use predict_proba for calibrated probabilities
+        probabilities = model.predict_proba(input_data)[0]
+        classes = model.classes_
+        
+        # Make a list of sicknesses with how sure the tree is (in percentages)
+        scores = {
+            disease: round(float(prob) * 100, 1)
+            for disease, prob in zip(classes, probabilities)
+        }
 
         # Pick the top 3 best guesses
         top3 = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
+        
+        # Get the confidence for the main prediction
+        confidence = scores.get(prediction, 0.0)
+        
+        # Generate future outcome based on past history
         future_outcome = generate_future_outcome(prediction, features)
 
         # Send back the answer
         return jsonify({
             "disease": prediction,  # The sickness the tree thinks
-            "confidence": scores.get(prediction, 0.0),  # How sure the tree is
+            "confidence": confidence,  # How sure the tree is
             "top3": [{"disease": d, "confidence": c} for d, c in top3],  # Top 3 guesses
             "future_outcome": future_outcome,
             "features": features  # All the clues used
@@ -421,6 +436,90 @@ def predict():
     except Exception as e:
         # If something goes wrong, write it down and send error message
         logger.exception("Prediction error")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/future-illnesses", methods=["POST"])
+def get_future_illnesses():
+    """Get top 3 most likely future illnesses for a patient based on their medical history"""
+    try:
+        data = request.get_json()
+        patient_id = data.get('patient_id')
+        
+        if not patient_id:
+            return jsonify({"error": "Patient ID required"}), 400
+        
+        # Query past checkups for this patient
+        conn = connect_db()
+        past_query = """
+        SELECT diagnosis, checkup_date 
+        FROM checkups
+        WHERE patient_id = %s
+        ORDER BY checkup_date DESC
+        LIMIT 20
+        """
+        past_df = pd.read_sql(past_query, conn, params=[patient_id])
+        conn.close()
+        
+        if past_df.empty:
+            return jsonify({
+                "patient_id": patient_id,
+                "future_illnesses": [],
+                "message": "No past medical history found"
+            })
+        
+        # Count the frequency of each diagnosis from past checkups
+        diagnosis_counts = past_df['diagnosis'].value_counts().head(10)
+        
+        # Get all possible diagnoses from the training data
+        X, y = load_training_data()
+        all_diagnoses = set(y.unique())
+        
+        # Predict what illnesses might occur based on common past patterns
+        # Create a list of likely future illnesses
+        future_illnesses = []
+        
+        # Add diagnoses that appeared in the patient's history
+        for diagnosis, count in diagnosis_counts.items():
+            if diagnosis and diagnosis != 'None':
+                frequency_score = (count / len(past_df)) * 100
+                future_illnesses.append({
+                    "disease": diagnosis,
+                    "likelihood": round(frequency_score, 1),
+                    "reason": f"Recurring condition (appeared {int(count)} times in history)"
+                })
+        
+        # If we have room, add common diseases from the training data
+        if len(future_illnesses) < 3:
+            # Get diseases from the disease_data.csv and count frequency
+            try:
+                disease_df = pd.read_csv(CSV_PATH)
+                if 'disease' in disease_df.columns:
+                    disease_counts = disease_df['disease'].value_counts()
+                    for disease, count in disease_counts.items():
+                        if disease not in [ill['disease'] for ill in future_illnesses]:
+                            general_likelihood = (count / len(disease_df)) * 100
+                            future_illnesses.append({
+                                "disease": disease,
+                                "likelihood": round(general_likelihood, 1),
+                                "reason": "Common disease in general population"
+                            })
+                        if len(future_illnesses) >= 3:
+                            break
+            except Exception as e:
+                logger.warning(f"Could not load disease data: {e}")
+        
+        # Sort by likelihood and take top 3
+        future_illnesses = sorted(future_illnesses, key=lambda x: x['likelihood'], reverse=True)[:3]
+        
+        return jsonify({
+            "patient_id": patient_id,
+            "future_illnesses": future_illnesses,
+            "total_past_checkups": len(past_df)
+        })
+        
+    except Exception as e:
+        logger.exception("Future illnesses prediction error")
         return jsonify({"error": str(e)}), 500
 
 
