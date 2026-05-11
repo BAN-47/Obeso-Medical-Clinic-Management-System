@@ -170,6 +170,20 @@ window.addEventListener('load', function() {
                                 <?php endforeach; ?>
                             </ul>
                         <?php endif; ?>
+
+                        <?php if (!empty($predictionInsight['future_outcome'])): ?>
+                            <div class="mt-3 p-3 bg-light rounded-3">
+                                <strong>Future outcome risk:</strong>
+                                <span class="badge bg-<?= $predictionInsight['future_outcome']['risk_level'] === 'High' ? 'danger' : ($predictionInsight['future_outcome']['risk_level'] === 'Moderate' ? 'warning text-dark' : 'success') ?>">
+                                    <?= htmlspecialchars($predictionInsight['future_outcome']['risk_level']) ?>
+                                </span>
+                                <p class="mb-1 mt-2"><?= htmlspecialchars($predictionInsight['future_outcome']['summary']) ?></p>
+                                <p class="text-muted small mb-0">
+                                    <strong>Recommendation:</strong> <?= htmlspecialchars($predictionInsight['future_outcome']['recommendation']) ?>
+                                </p>
+                            </div>
+                        <?php endif; ?>
+
                         <p class="text-muted small mb-0">This insight is generated from the patient’s past records and current checkup data.</p>
                     </div>
                 <?php endif; ?>
@@ -214,6 +228,8 @@ window.addEventListener('load', function() {
 </div>
 </div>
 <?php endif; ?>
+
+<?php include "aiprediction.php"; ?>
 
 <!-- ================= FOLLOW-UP FORM ================= -->
 <div class="card shadow mb-4" style="margin-top: -40px;">

@@ -4,6 +4,7 @@ import pandas as pd  # Import a tool to work with data like spreadsheets
 from sklearn.tree import DecisionTreeClassifier  # Import the smart tree that guesses illnesses
 import mysql.connector  # Import tool to talk to the database
 import logging  # Import tool to write messages about what's happening
+import os  # Import tool to work with file paths
 
 app = Flask(__name__)  # Make a new web server
 CORS(app)  # Let the server talk to the clinic website
@@ -19,6 +20,9 @@ DB_CONFIG = {
     'password': '',  # No password needed
     'database': 'obeso_clinic_database'  # Name of the database
 }
+
+# Path to the CSV file that can also provide training examples for the AI
+CSV_PATH = os.path.join(os.path.dirname(__file__), 'disease_data.csv')
 
 # List of sickness signs we look for in patient words
 SYMPTOMS = ['cough', 'headache', 'fatigue', 'body_pain',
@@ -72,122 +76,137 @@ def text_contains_keywords(text, keywords):
     return any(keyword in text for keyword in keywords)
 
 
-def load_training_data():
-    # Connect to the database
-    conn = connect_db()
-    # Ask the database for old patient visits that have sickness names
+def load_training_data_from_csv():
+    # Load training examples straight from the CSV file
+    df = pd.read_csv(CSV_PATH)
+
+    # Make sure the CSV has the expected target column
+    if 'disease' not in df.columns:
+        raise ValueError("CSV training file must contain a 'disease' column.")
+
+    # Add any missing feature columns as zeros so the model can still train
+    for col in FEATURE_COLUMNS:
+        if col not in df.columns:
+            df[col] = 0
+
+    # Convert all feature columns to numeric values
+    for col in FEATURE_COLUMNS:
+        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype(int)
+
+    return df[FEATURE_COLUMNS], df['disease']
+
+
+def load_training_data_from_db(conn):
     query = """
     SELECT
-        checkup_id,  # ID of the visit
-        patient_id,  # ID of the patient
-        checkup_date,  # When the visit happened
-        diagnosis,  # What sickness the doctor said
-        blood_pressure,  # Blood pressure number
-        heart_rate,  # Heart beat number
-        temperature,  # Temperature number
-        respiratory_rate,  # Breathing number
-        chief_complaint,  # What the patient said was wrong
-        history_present_illness  # More details about what's wrong
+        checkup_id,
+        patient_id,
+        checkup_date,
+        diagnosis,
+        blood_pressure,
+        heart_rate,
+        temperature,
+        respiratory_rate,
+        chief_complaint,
+        history_present_illness
     FROM checkups
-    WHERE diagnosis IS NOT NULL  # Only visits where doctor gave a sickness name
-    ORDER BY patient_id, checkup_date  # Sort by patient and date
+    WHERE diagnosis IS NOT NULL
+    ORDER BY patient_id, checkup_date
     """
 
-    # Get the data from database and put it in a table
     df = pd.read_sql(query, conn)
-
-    # If no data, stop and say there's no data
     if df.empty:
-        conn.close()
-        raise ValueError("No labeled checkup records available for training.")
+        return pd.DataFrame(columns=FEATURE_COLUMNS), pd.Series(dtype='str')
 
-    # Remove visits that don't have all the numbers we need
     df = df.dropna(subset=['diagnosis', 'blood_pressure', 'temperature', 'heart_rate', 'respiratory_rate'])
-    
-    # Fix blood pressure to just the top number
     df['blood_pressure'] = df['blood_pressure'].astype(str).apply(
         lambda x: int(x.split('/')[0]) if '/' in x else int(x) if str(x).isdigit() else 0
     )
-    # Make sure numbers are the right type
     df['temperature'] = df['temperature'].astype(float)
     df['heart_rate'] = df['heart_rate'].astype(int)
     df['respiratory_rate'] = df['respiratory_rate'].astype(int)
 
-    # Check if temperature is high (fever)
     df['fever'] = (df['temperature'] >= 38.0).astype(int)
-    # Check if blood pressure is high
     df['high_bp'] = (df['blood_pressure'] >= 140).astype(int)
 
-    # For each sickness sign, check if patient mentioned it
     for symptom in SYMPTOMS:
         df[symptom] = df.apply(
             lambda row: int(
                 text_contains_keywords(row['chief_complaint'], KEYWORDS[symptom])
                 or text_contains_keywords(row['history_present_illness'], KEYWORDS[symptom])
             ),
-            axis=1  # Check each row
+            axis=1
         )
 
-    # Add information from patient's past visits
     history_features = []
-    for idx, row in df.iterrows():  # For each visit
+    for idx, row in df.iterrows():
         patient_id = row['patient_id']
         checkup_date = row['checkup_date']
-        
-        # Ask database for this patient's visits before this date
         past_query = """
         SELECT diagnosis, temperature, blood_pressure, chief_complaint, history_present_illness
         FROM checkups
         WHERE patient_id = %s AND checkup_date < %s
         """
         past_df = pd.read_sql(past_query, conn, params=[patient_id, checkup_date])
-        
-        # Count how many past visits
+
         past_checkup_count = len(past_df)
-        # Check if patient had fever before
         has_past_fever = int(any(past_df['temperature'] >= 38.0) if not past_df.empty else 0)
-        # Check if patient had high BP before
         has_past_high_bp = int(any(
             past_df['blood_pressure'].astype(str).apply(
                 lambda x: int(x.split('/')[0]) if '/' in x else int(x) if str(x).isdigit() else 0
             ) >= 140
         ) if not past_df.empty else 0)
-        
-        # Check if patient coughed before
         has_past_cough = int(any(
-            past_df.apply(lambda r: text_contains_keywords(r['chief_complaint'], KEYWORDS['cough']) or 
+            past_df.apply(lambda r: text_contains_keywords(r['chief_complaint'], KEYWORDS['cough']) or
                                  text_contains_keywords(r['history_present_illness'], KEYWORDS['cough']), axis=1)
         ) if not past_df.empty else 0)
-        
-        # Check if patient had headaches before
         has_past_headache = int(any(
-            past_df.apply(lambda r: text_contains_keywords(r['chief_complaint'], KEYWORDS['headache']) or 
+            past_df.apply(lambda r: text_contains_keywords(r['chief_complaint'], KEYWORDS['headache']) or
                                  text_contains_keywords(r['history_present_illness'], KEYWORDS['headache']), axis=1)
         ) if not past_df.empty else 0)
-        
-        # Find the sickness this patient had most often
         most_common_past_diagnosis = past_df['diagnosis'].mode().iloc[0] if not past_df.empty and not past_df['diagnosis'].mode().empty else 'None'
-        
-        # Add all past info to the list
+
         history_features.append({
             'past_checkup_count': past_checkup_count,
             'has_past_fever': has_past_fever,
             'has_past_high_bp': has_past_high_bp,
             'has_past_cough': has_past_cough,
             'has_past_headache': has_past_headache,
-            'most_common_past_diagnosis': hash(most_common_past_diagnosis) % 1000  # Turn sickness name into a number
+            'most_common_past_diagnosis': hash(most_common_past_diagnosis) % 1000
         })
-    
-    # Add past info to the main table
+
     history_df = pd.DataFrame(history_features)
-    df = pd.concat([df, history_df], axis=1)
-
-    # Close the database door
-    conn.close()
-
-    # Get the clues (X) and the answers (y)
+    df = pd.concat([df.reset_index(drop=True), history_df], axis=1)
     X = df[FEATURE_COLUMNS]
     y = df['diagnosis']
+    return X, y
+
+
+def load_training_data():
+    if os.path.exists(CSV_PATH):
+        logger.info(f"Loading training data from CSV: {CSV_PATH}")
+        csv_X, csv_y = load_training_data_from_csv()
+
+        try:
+            conn = connect_db()
+            db_X, db_y = load_training_data_from_db(conn)
+            conn.close()
+
+            if not db_X.empty:
+                logger.info("Appending database history examples to CSV training data.")
+                X = pd.concat([csv_X, db_X], ignore_index=True)
+                y = pd.concat([csv_y, db_y], ignore_index=True)
+                return X, y
+        except Exception as e:
+            logger.warning(f"DB training examples unavailable: {e}")
+
+        return csv_X, csv_y
+
+    conn = connect_db()
+    X, y = load_training_data_from_db(conn)
+    conn.close()
+    if X.empty:
+        raise ValueError("No labeled training data available.")
     return X, y
 
 
@@ -231,69 +250,122 @@ def build_input_features(data):
         str(data.get('history_present_illness', ''))
     ]).lower()
 
-    # Connect to database to get patient's past visits
-    conn = connect_db()
-    past_query = """
-    SELECT diagnosis, temperature, blood_pressure, chief_complaint, history_present_illness
-    FROM checkups
-    WHERE patient_id = %s
-    """
-    past_df = pd.read_sql(past_query, conn, params=[patient_id])
-    conn.close()
-    
-    # Count past visits
-    past_checkup_count = len(past_df)
-    # Check past fever
-    has_past_fever = int(any(past_df['temperature'] >= 38.0) if not past_df.empty else 0)
-    # Check past high BP
-    has_past_high_bp = int(any(
-        past_df['blood_pressure'].astype(str).apply(
-            lambda x: int(x.split('/')[0]) if '/' in x else int(x) if str(x).isdigit() else 0
-        ) >= 140
-    ) if not past_df.empty else 0)
-    
-    # Check past cough
-    has_past_cough = int(any(
-        past_df.apply(lambda r: text_contains_keywords(r['chief_complaint'], KEYWORDS['cough']) or 
-                             text_contains_keywords(r['history_present_illness'], KEYWORDS['cough']), axis=1)
-    ) if not past_df.empty else 0)
-    
-    # Check past headache
-    has_past_headache = int(any(
-        past_df.apply(lambda r: text_contains_keywords(r['chief_complaint'], KEYWORDS['headache']) or 
-                             text_contains_keywords(r['history_present_illness'], KEYWORDS['headache']), axis=1)
-    ) if not past_df.empty else 0)
-    
-    # Find most common past sickness
-    most_common_past_diagnosis = past_df['diagnosis'].mode().iloc[0] if not past_df.empty and not past_df['diagnosis'].mode().empty else 'None'
-    most_common_past_diagnosis_hash = hash(most_common_past_diagnosis) % 1000  # Turn into number
+    # Keep direct symptom flags from the UI if provided, otherwise fall back to text search
+    symptom_flags = {
+        symptom: int(data.get(symptom, 0))
+        for symptom in SYMPTOMS
+    }
+
+    # Default history info when no database history is available
+    past_checkup_count = 0
+    has_past_fever = 0
+    has_past_high_bp = 0
+    has_past_cough = 0
+    has_past_headache = 0
+    most_common_past_diagnosis = 'None'
+    most_common_past_diagnosis_hash = 0
+
+    if patient_id:
+        try:
+            conn = connect_db()
+            past_query = """
+            SELECT diagnosis, temperature, blood_pressure, chief_complaint, history_present_illness
+            FROM checkups
+            WHERE patient_id = %s
+            """
+            past_df = pd.read_sql(past_query, conn, params=[patient_id])
+            conn.close()
+
+            if not past_df.empty:
+                past_checkup_count = len(past_df)
+                has_past_fever = int(any(past_df['temperature'] >= 38.0))
+                has_past_high_bp = int(any(
+                    past_df['blood_pressure'].astype(str).apply(
+                        lambda x: int(x.split('/')[0]) if '/' in x else int(x) if str(x).isdigit() else 0
+                    ) >= 140
+                ))
+                has_past_cough = int(any(
+                    past_df.apply(
+                        lambda r: text_contains_keywords(r['chief_complaint'], KEYWORDS['cough'])
+                                  or text_contains_keywords(r['history_present_illness'], KEYWORDS['cough']),
+                        axis=1
+                    )
+                ))
+                has_past_headache = int(any(
+                    past_df.apply(
+                        lambda r: text_contains_keywords(r['chief_complaint'], KEYWORDS['headache'])
+                                  or text_contains_keywords(r['history_present_illness'], KEYWORDS['headache']),
+                        axis=1
+                    )
+                ))
+                most_common_past_diagnosis = (
+                    past_df['diagnosis'].mode().iloc[0]
+                    if not past_df['diagnosis'].mode().empty
+                    else 'None'
+                )
+                most_common_past_diagnosis_hash = hash(most_common_past_diagnosis) % 1000
+        except Exception as e:
+            logger.warning(f"Past history lookup failed: {e}")
 
     # Make a list of all the clues for this patient
     features = {
-        'fever': int(temperature >= 38.0),  # Is temperature high?
-        'high_bp': int(systolic >= 140),  # Is blood pressure high?
-        'cough': int(text_contains_keywords(combined_text, KEYWORDS['cough'])),  # Did patient mention cough?
-        'headache': int(text_contains_keywords(combined_text, KEYWORDS['headache'])),  # Did patient mention headache?
-        'fatigue': int(text_contains_keywords(combined_text, KEYWORDS['fatigue'])),  # Did patient mention tiredness?
-        'body_pain': int(text_contains_keywords(combined_text, KEYWORDS['body_pain'])),  # Did patient mention body pain?
-        'sore_throat': int(text_contains_keywords(combined_text, KEYWORDS['sore_throat'])),  # Did patient mention sore throat?
-        'vomiting': int(text_contains_keywords(combined_text, KEYWORDS['vomiting'])),  # Did patient mention vomiting?
-        'diarrhea': int(text_contains_keywords(combined_text, KEYWORDS['diarrhea'])),  # Did patient mention diarrhea?
-        'blood_pressure': systolic,  # Blood pressure number
-        'heart_rate': heart_rate,  # Heart rate number
-        'temperature': temperature,  # Temperature number
-        'respiratory_rate': respiratory_rate,  # Breathing rate number
-        # Past visit information
-        'past_checkup_count': past_checkup_count,  # How many past visits?
-        'has_past_fever': has_past_fever,  # Had fever before?
-        'has_past_high_bp': has_past_high_bp,  # Had high BP before?
-        'has_past_cough': has_past_cough,  # Coughed before?
-        'has_past_headache': has_past_headache,  # Had headaches before?
-        'most_common_past_diagnosis': most_common_past_diagnosis_hash  # Most common past sickness (as number)
+        'fever': int(data.get('fever', 0)) or int(temperature >= 38.0),
+        'high_bp': int(systolic >= 140),
+        'cough': symptom_flags['cough'] or int(text_contains_keywords(combined_text, KEYWORDS['cough'])),
+        'headache': symptom_flags['headache'] or int(text_contains_keywords(combined_text, KEYWORDS['headache'])),
+        'fatigue': symptom_flags['fatigue'] or int(text_contains_keywords(combined_text, KEYWORDS['fatigue'])),
+        'body_pain': symptom_flags['body_pain'] or int(text_contains_keywords(combined_text, KEYWORDS['body_pain'])),
+        'sore_throat': symptom_flags['sore_throat'] or int(text_contains_keywords(combined_text, KEYWORDS['sore_throat'])),
+        'vomiting': symptom_flags['vomiting'] or int(text_contains_keywords(combined_text, KEYWORDS['vomiting'])),
+        'diarrhea': symptom_flags['diarrhea'] or int(text_contains_keywords(combined_text, KEYWORDS['diarrhea'])),
+        'blood_pressure': systolic,
+        'heart_rate': heart_rate,
+        'temperature': temperature,
+        'respiratory_rate': respiratory_rate,
+        'past_checkup_count': past_checkup_count,
+        'has_past_fever': has_past_fever,
+        'has_past_high_bp': has_past_high_bp,
+        'has_past_cough': has_past_cough,
+        'has_past_headache': has_past_headache,
+        'most_common_past_diagnosis': most_common_past_diagnosis_hash
     }
 
     # Return the clues in the right order, and all the features
-    return [features[col] for col in FEATURE_COLUMNS], features
+    return pd.DataFrame([features])[FEATURE_COLUMNS], features
+
+
+def generate_future_outcome(prediction, features):
+    risk_level = 'Low'
+    summary = 'Patient is likely to remain stable with current care.'
+    recommendation = 'Continue monitoring and follow standard treatment guidelines.'
+
+    if features['past_checkup_count'] >= 3 or features['has_past_high_bp'] == 1:
+        risk_level = 'High'
+        summary = 'Patient has a history of repeat visits and significant vitals changes; future illness risk is elevated.'
+        recommendation = 'Review chronic conditions and schedule an early follow-up visit.'
+    elif features['has_past_fever'] == 1 or features['has_past_headache'] == 1:
+        risk_level = 'Moderate'
+        summary = 'Patient has prior symptoms that could recur; prepare for potential follow-up care.'
+        recommendation = 'Advise symptom tracking and prompt re-evaluation if symptoms return.'
+
+    if prediction in ['Hypertension', 'Heart Failure', 'Diabetes', 'COPD', 'Asthma', 'Chronic Migraine']:
+        risk_level = max(risk_level, 'High', key=lambda x: ['Low','Moderate','High'].index(x))
+        summary = 'Predicted condition is chronic and needs careful monitoring.'
+        recommendation = 'Assess long-term management and patient education on warning signs.'
+    elif prediction in ['COVID-19', 'Pneumonia', 'Dengue', 'Typhoid']:
+        risk_level = 'High'
+        summary = 'Predicted serious infectious illness requires urgent clinical attention and monitoring.'
+        recommendation = 'Immediate testing/confirmation, isolation precautions, and close follow-up care.'
+    elif prediction in ['Influenza']:
+        risk_level = max(risk_level, 'Moderate', key=lambda x: ['Low','Moderate','High'].index(x))
+        summary = 'Predicted infectious illness may require close follow-up.'
+        recommendation = 'Ensure early recheck and supportive care if symptoms worsen.'
+
+    return {
+        'risk_level': risk_level,
+        'summary': summary,
+        'recommendation': recommendation
+    }
 
 
 # Train the smart tree once when the program starts
@@ -316,12 +388,13 @@ def predict():
 
         # Turn the patient info into clues for the tree
         input_data, features = build_input_features(data)
+
         # Ask the smart tree to guess the sickness
-        prediction = model.predict([input_data])[0]
+        prediction = model.predict(input_data)[0]
 
         # Get how sure the tree is about each guess
         if hasattr(model, 'predict_proba'):
-            probabilities = model.predict_proba([input_data])[0]
+            probabilities = model.predict_proba(input_data)[0]
             classes = model.classes_
             # Make a list of sicknesses with how sure the tree is
             scores = {
@@ -334,12 +407,14 @@ def predict():
 
         # Pick the top 3 best guesses
         top3 = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
+        future_outcome = generate_future_outcome(prediction, features)
 
         # Send back the answer
         return jsonify({
             "disease": prediction,  # The sickness the tree thinks
             "confidence": scores.get(prediction, 0.0),  # How sure the tree is
             "top3": [{"disease": d, "confidence": c} for d, c in top3],  # Top 3 guesses
+            "future_outcome": future_outcome,
             "features": features  # All the clues used
         })
 
