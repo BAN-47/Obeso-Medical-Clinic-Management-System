@@ -10,8 +10,10 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'doctor') {
 /* ================= DATABASE ================= */
 require_once "../Config/database.php";
 require_once __DIR__ . "/../Class/followups.php";
+require_once __DIR__ . "/../Class/Prediction.php";
 $db = (new Database())->connect();
 $followups = new Followups($db);
+$predictor = new Prediction();
 
 /* ================= FETCH ORIGINAL CHECKUP DETAILS ================= */
 $originalCheckup = null;
@@ -52,6 +54,50 @@ if (isset($_GET['patient_id'])) {
     $patientStmt = $db->prepare("SELECT * FROM patients WHERE patient_id = ?");
     $patientStmt->execute([$patient_id]);
     $patient = $patientStmt->fetch(PDO::FETCH_ASSOC);
+}
+
+/* ================= FETCH PAST CHECKUPS ================= */
+$pastCheckups = [];
+$topFutureIllnesses = [];
+if ($patient && isset($patient['patient_id'])) {
+    // Get past checkups
+    $pastStmt = $db->prepare("
+        SELECT checkup_id, checkup_date, diagnosis, temperature, blood_pressure, heart_rate, respiratory_rate
+        FROM checkups
+        WHERE patient_id = ?
+        ORDER BY checkup_date DESC
+        LIMIT 10
+    ");
+    $pastStmt->execute([$patient['patient_id']]);
+    $pastCheckups = $pastStmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Get top 3 future illnesses from AI
+    try {
+        $ch = curl_init('http://127.0.0.1:8000/future-illnesses');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['patient_id' => $patient['patient_id']]));
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($response && $httpCode === 200) {
+            $aiData = json_decode($response, true);
+            if (isset($aiData['future_illnesses'])) {
+                $topFutureIllnesses = $aiData['future_illnesses'];
+            }
+        }
+    } catch (Exception $e) {
+        // Silently fail - AI service might not be running
+    }
+}
+
+$predictionInsight = null;
+if ($originalCheckup) {
+    $predictionInsight = $predictor->predictFromCheckup($originalCheckup);
 }
 
 /* ================= HANDLE FORM SUBMISSION (CREATE FOLLOW-UP) ================= */
@@ -140,6 +186,49 @@ window.addEventListener('load', function() {
 
 <!-- ================= ORIGINAL CHECKUP DETAILS ================= -->
 <?php if ($originalCheckup): ?>
+    <!-- PATIENT PREDICTION INSIGHT -->
+    <?php if ($predictionInsight): ?>
+        <div class="card shadow mb-4 border-start border-4 border-warning">
+            <div class="card-body">
+                <?php if (!empty($predictionInsight['error'])): ?>
+                    <div class="alert alert-warning mb-0">
+                        <strong>AI Insight:</strong> <?= htmlspecialchars($predictionInsight['message']) ?>
+                    </div>
+                <?php else: ?>
+                    <div class="alert alert-info mb-0">
+                        <h5 class="mb-2"><i class="fa fa-lightbulb"></i> Predicted future illness</h5>
+                        <p class="mb-1">
+                            <strong><?= htmlspecialchars($predictionInsight['disease']) ?></strong>
+                            <span class="badge bg-secondary ms-2"><?= round($predictionInsight['confidence'], 1) ?>% confidence</span>
+                        </p>
+                        <?php if (!empty($predictionInsight['top3'])): ?>
+                            <small class="text-muted">Top possible outcomes:</small>
+                            <ul class="mb-0 ps-3">
+                                <?php foreach ($predictionInsight['top3'] as $item): ?>
+                                    <li><?= htmlspecialchars($item['disease']) ?> (<?= round($item['confidence'], 1) ?>%)</li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
+
+                        <?php if (!empty($predictionInsight['future_outcome'])): ?>
+                            <div class="mt-3 p-3 bg-light rounded-3">
+                                <strong>Future outcome risk:</strong>
+                                <span class="badge bg-<?= $predictionInsight['future_outcome']['risk_level'] === 'High' ? 'danger' : ($predictionInsight['future_outcome']['risk_level'] === 'Moderate' ? 'warning text-dark' : 'success') ?>">
+                                    <?= htmlspecialchars($predictionInsight['future_outcome']['risk_level']) ?>
+                                </span>
+                                <p class="mb-1 mt-2"><?= htmlspecialchars($predictionInsight['future_outcome']['summary']) ?></p>
+                                <p class="text-muted small mb-0">
+                                    <strong>Recommendation:</strong> <?= htmlspecialchars($predictionInsight['future_outcome']['recommendation']) ?>
+                                </p>
+                            </div>
+                        <?php endif; ?>
+
+                        <p class="text-muted small mb-0">This insight is generated from the patient’s past records and current checkup data.</p>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+    <?php endif; ?>
 <div class="card shadow mb-4">
 <div class="section-header">
 <i class="fa fa-stethoscope me-2"></i> Original Checkup Details (<?= $originalCheckup['checkup_date'] ?>)
@@ -175,6 +264,78 @@ window.addEventListener('load', function() {
 </tbody>
 </table>
 <?php endif; ?>
+</div>
+</div>
+<?php endif; ?>
+
+<!-- ================= PAST MEDICAL HISTORY ================= -->
+<?php if (!empty($pastCheckups)): ?>
+<div class="card shadow mb-4">
+<div class="section-header">
+<i class="fa fa-history me-2"></i> Past Medical History (Last 10 Checkups)
+</div>
+<div class="card-body">
+<div class="table-responsive">
+<table class="table table-striped table-hover">
+<thead class="table-light">
+<tr>
+<th>Date</th>
+<th>Diagnosis</th>
+<th>Temp (°C)</th>
+<th>BP</th>
+<th>HR</th>
+<th>RR</th>
+</tr>
+</thead>
+<tbody>
+<?php foreach ($pastCheckups as $checkup): ?>
+<tr>
+<td><?= htmlspecialchars($checkup['checkup_date']) ?></td>
+<td><span class="badge bg-info text-dark"><?= htmlspecialchars($checkup['diagnosis']) ?></span></td>
+<td><?= htmlspecialchars($checkup['temperature']) ?></td>
+<td><?= htmlspecialchars($checkup['blood_pressure']) ?></td>
+<td><?= htmlspecialchars($checkup['heart_rate']) ?></td>
+<td><?= htmlspecialchars($checkup['respiratory_rate']) ?></td>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<?php endif; ?>
+
+<!-- ================= TOP 3 FUTURE ILLNESSES ================= -->
+<?php if (!empty($topFutureIllnesses)): ?>
+<div class="card shadow mb-4 border-start border-4 border-success">
+<div class="section-header" style="background: #28a745;">
+<i class="fa fa-crystal-ball me-2"></i> AI: Top 3 Future Illnesses (Based on History)
+</div>
+<div class="card-body">
+<div class="row">
+<?php foreach ($topFutureIllnesses as $index => $illness): ?>
+<div class="col-md-4 mb-3">
+<div class="card border-0 bg-light">
+<div class="card-body">
+<h6 class="card-title">
+<span class="badge bg-success">#<?= $index + 1 ?></span>
+<?= htmlspecialchars($illness['disease']) ?>
+</h6>
+<p class="mb-2">
+<strong>Likelihood:</strong> 
+<div class="progress" style="height: 20px;">
+<div class="progress-bar" role="progressbar" style="width: <?= $illness['likelihood'] ?>%;" aria-valuenow="<?= $illness['likelihood'] ?>" aria-valuemin="0" aria-valuemax="100">
+<?= round($illness['likelihood'], 1) ?>%
+</div>
+</div>
+</p>
+<p class="small text-muted mb-0"><strong>Reason:</strong> <?= htmlspecialchars($illness['reason']) ?></p>
+</div>
+</div>
+</div>
+<?php endforeach; ?>
+</div>
+<p class="text-muted small mb-0"><i class="fa fa-info-circle"></i> This prediction is based on the patient's medical history and common disease patterns.</p>
 </div>
 </div>
 <?php endif; ?>

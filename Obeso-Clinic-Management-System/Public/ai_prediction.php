@@ -46,6 +46,14 @@
       <span class="badge bg-warning text-dark ms-2" id="confidenceBadge"></span>
     </div>
 
+    <div id="futureOutcomeBlock" class="mb-3" style="display:none;">
+      <p class="mb-1"><strong>Future outcome risk:</strong>
+        <span id="futureOutcomeRisk" class="badge bg-success"></span>
+      </p>
+      <p id="futureOutcomeSummary" class="mb-1 text-muted"></p>
+      <p id="futureOutcomeRecommendation" class="small text-muted mb-0"></p>
+    </div>
+
     <p class="text-muted small mb-1">Top possibilities:</p>
     <ul class="list-group list-group-flush" id="top3List"></ul>
 
@@ -72,6 +80,7 @@ async function predictDisease() {
     // Reset
     resultDiv.style.display = "none";
     errorDiv.style.display  = "none";
+    document.getElementById('futureOutcomeBlock').style.display = 'none';
     btn.disabled = true;
     btn.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i> Predicting...';
 
@@ -81,10 +90,19 @@ async function predictDisease() {
         'body_pain','sore_throat','vomiting','diarrhea'
     ];
 
-    const data = {};
-    symptoms.forEach(s => {
-        data[s] = document.getElementById(s).checked ? 1 : 0;
-    });
+   const data = {
+    patient_id: "<?= $originalCheckup['patient_id'] ?? '' ?>",
+    chief_complaint: "<?= addslashes($originalCheckup['chief_complaint'] ?? '') ?>",
+    history_present_illness: "<?= addslashes($originalCheckup['history_present_illness'] ?? '') ?>",
+    blood_pressure: "<?= $originalCheckup['blood_pressure'] ?? '' ?>",
+    heart_rate: <?= (int)($originalCheckup['heart_rate'] ?? 0) ?>,
+    temperature: <?= (float)($originalCheckup['temperature'] ?? 0) ?>,
+    respiratory_rate: <?= (int)($originalCheckup['respiratory_rate'] ?? 0) ?>
+};
+
+symptoms.forEach(s => {
+    data[s] = document.getElementById(s).checked ? 1 : 0;
+});
 
     try {
         const response = await fetch("http://127.0.0.1:8000/predict", {
@@ -116,6 +134,15 @@ async function predictDisease() {
                     <span class="badge bg-secondary">${item.confidence}%</span>
                 </li>`;
         });
+
+        if (result.future_outcome) {
+            document.getElementById('futureOutcomeRisk').textContent = result.future_outcome.risk_level;
+            document.getElementById('futureOutcomeSummary').textContent = result.future_outcome.summary;
+            document.getElementById('futureOutcomeRecommendation').textContent = 'Recommendation: ' + result.future_outcome.recommendation;
+            document.getElementById('futureOutcomeBlock').style.display = 'block';
+        } else {
+            document.getElementById('futureOutcomeBlock').style.display = 'none';
+        }
 
         resultDiv.style.display = "block";
 
