@@ -507,11 +507,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
                 <div class="mt-3"><label class="form-label text-muted small">Chief Complaint</label><textarea name="chief_complaint" class="form-control" placeholder="Chief Complaint" required></textarea></div>
 
                 <div class="row g-2 mt-3">
-                    <div class="col"><label class="form-label text-muted small">BP</label><input name="blood_pressure" class="form-control" placeholder="BP" required></div>
-                    <div class="col"><label class="form-label text-muted small">RR</label><input name="respiratory_rate" class="form-control" placeholder="RR" required></div>
-                    <div class="col"><label class="form-label text-muted small">WT</label><input name="weight" class="form-control" placeholder="WT" required></div>
-                    <div class="col"><label class="form-label text-muted small">HR</label><input name="heart_rate" class="form-control" placeholder="HR" required></div>
-                    <div class="col"><label class="form-label text-muted small">TEMP</label><input name="temperature" class="form-control" placeholder="TEMP" required></div>
+                    <div class="col"><label class="form-label text-muted small">Blood Pressure</label><input name="blood_pressure" class="form-control" placeholder="BP" required></div>
+                    <div class="col"><label class="form-label text-muted small">Respiratory Rate</label><input name="respiratory_rate" class="form-control" placeholder="RR" required></div>
+                    <div class="col"><label class="form-label text-muted small">Weight</label><input name="weight" class="form-control" placeholder="WT" required></div>
+                    <div class="col"><label class="form-label text-muted small">Heart Rate</label><input name="heart_rate" class="form-control" placeholder="HR" required></div>
+                    <div class="col"><label class="form-label text-muted small">Temperature</label><input name="temperature" class="form-control" placeholder="TEMP" required></div>
                 </div>
 
             </div>
@@ -599,23 +599,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
             </div>
             <div class="row g-2">
                 <div class="col">
-                    <label class="form-label text-muted small">BP</label>
+                    <label class="form-label text-muted small">Blood Pressure</label>
                     <input id="old_blood_pressure" class="form-control" placeholder="BP" required>
                 </div>
                 <div class="col">
-                    <label class="form-label text-muted small">RR</label>
+                    <label class="form-label text-muted small">Respiratory Rate</label>
                     <input id="old_respiratory_rate" class="form-control" placeholder="RR" required >
                 </div>
                 <div class="col">
-                    <label class="form-label text-muted small">WT</label>
+                    <label class="form-label text-muted small">Weight</label>
                     <input id="old_weight" class="form-control" placeholder="WT" required>
                 </div>
                 <div class="col">
-                    <label class="form-label text-muted small">HR</label>
+                    <label class="form-label text-muted small">Heart Rate</label>
                     <input id="old_heart_rate" class="form-control" placeholder="HR" required>
                 </div>
                 <div class="col">
-                    <label class="form-label text-muted small">TEMP</label>
+                    <label class="form-label text-muted small">Temperature</label>
                     <input id="old_temperature" class="form-control" placeholder="TEMP" required>
                 </div>
             </div>
