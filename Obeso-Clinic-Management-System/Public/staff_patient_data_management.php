@@ -474,36 +474,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
     <form method="POST">
         <input type="hidden" name="patient_id" id="patient_id">
 
-        <div class="card section-card mb-4 shadow-sm">
-            <div class="section-header">
-                <i class="fa-solid fa-user me-2"></i> Patient Information
-            </div>
-            <div class="card-body row g-3">
-                <div class="col-md-6"><input name="full_name" class="form-control" placeholder="Full Name" required></div>
-                <div class="col-md-3"><input type="date" name="birthday" class="form-control" placeholder="Birthday" required></div>
-                <div class="col-md-3"><input type="number" name="age" class="form-control" placeholder="Age" required></div>
-
-                <div class="col-md-3">
-                    <select name="sex" class="form-select" required>
-                        <option value="">Sex</option>
-                        <option>Male</option><option>Female</option><option>Other</option>
-                    </select>
+            <div class="card section-card mb-4 shadow-sm">
+                <div class="section-header">
+                    <i class="fa-solid fa-user me-2"></i> Patient Information
                 </div>
-                <div class="col-md-3">
-                    <select name="civil_status" class="form-select">
-                        <option value="">Civil Status</option>
-                        <option>Single</option><option>Married</option><option>Widowed</option><option>Divorced</option>
-                    </select>
-                </div>
-                <div class="col-md-3"><input name="contact_number" class="form-control" placeholder="Contact Number" required></div>
-                <div class="col-md-3"><input name="occupation" class="form-control" placeholder="Occupation"></div>
+                <div class="card-body row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Full Name</label>
+                        <input name="full_name" class="form-control" placeholder="Full Name" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Birthday</label>
+                        <input type="date" name="birthday" class="form-control" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Age</label>
+                        <input type="number" name="age" class="form-control" placeholder="Age" required>
+                    </div>
 
-                <div class="col-md-6"><input name="contact_person" class="form-control" placeholder="Contact Person"></div>
-                <div class="col-md-3"><input type="number" name="contact_person_age" class="form-control" placeholder="Contact Person Age"></div>
-                <div class="col-md-3"><input name="religion" class="form-control" placeholder="Religion"></div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Sex</label>
+                        <select name="sex" class="form-select" required>
+                            <option value="">Select Sex</option>
+                            <option>Male</option><option>Female</option><option>Other</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Civil Status</label>
+                        <select name="civil_status" class="form-select">
+                            <option value="">Select Civil Status</option>
+                            <option>Single</option><option>Married</option><option>Widowed</option><option>Divorced</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Contact Number</label>
+                        <input name="contact_number" class="form-control" placeholder="Contact Number" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Occupation</label>
+                        <input name="occupation" class="form-control" placeholder="Occupation">
+                    </div>
 
-                <div class="col-12"><textarea name="address" class="form-control" placeholder="Address" required></textarea></div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small">Contact Person</label>
+                        <input name="contact_person" class="form-control" placeholder="Contact Person">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Contact Person Age</label>
+                        <input type="number" name="contact_person_age" class="form-control" placeholder="Contact Person Age">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label text-muted small">Religion</label>
+                        <input name="religion" class="form-control" placeholder="Religion">
+                    </div>
 
+                    <div class="col-12">
+                        <label class="form-label text-muted small">Address</label>
+                        <textarea name="address" class="form-control" placeholder="Address" required></textarea>
+                    </div>
                 <div class="mt-3"><label class="form-label text-muted small">Chief Complaint</label><textarea name="chief_complaint" class="form-control" placeholder="Chief Complaint" required></textarea></div>
 
                 <div class="row g-2 mt-3">

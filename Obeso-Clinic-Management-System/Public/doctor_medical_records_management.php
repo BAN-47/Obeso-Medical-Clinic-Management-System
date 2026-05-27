@@ -14,6 +14,7 @@ require_once __DIR__ . "/../Class/medications.php";
 require_once __DIR__ . "/../Class/prescribed_medication.php";
 
 $db = (new Database())->connect();
+
 /* ================= FETCH DOCTORS ================= */
 $doctorStmt = $db->query("SELECT doc_id, doc_fullname FROM doctors ORDER BY doc_fullname");
 $doctors = $doctorStmt->fetchAll(PDO::FETCH_ASSOC);
@@ -131,7 +132,6 @@ if (isset($_GET['patient_id'])) {
     $pendingCheckup = $pendingStmt->fetch(PDO::FETCH_ASSOC);
 
     if ($searchDate) {
-
         $countCheckupStmt = $db->prepare("SELECT COUNT(*) FROM checkups WHERE patient_id = ? AND checkup_date = ? AND status = 'completed'");
         $countCheckupStmt->execute([$pid, $searchDate]);
         $totalCheckups = $countCheckupStmt->fetchColumn();
@@ -142,15 +142,12 @@ if (isset($_GET['patient_id'])) {
         $cstmt->bindValue(':checkupLimit', $checkupLimit, PDO::PARAM_INT);
         $cstmt->bindValue(':checkupOffset', $checkupOffset, PDO::PARAM_INT);
         $cstmt->execute();
-
     } else {
-
         $countCheckupStmt = $db->prepare("SELECT COUNT(*) FROM checkups WHERE patient_id = ? AND status = 'completed'");
         $countCheckupStmt->execute([$pid]);
         $totalCheckups = $countCheckupStmt->fetchColumn();
 
         $cstmt = $db->prepare("SELECT * FROM checkups WHERE patient_id = :pid AND status = 'completed' ORDER BY checkup_date DESC LIMIT :checkupLimit OFFSET :checkupOffset");
-
         $cstmt->bindValue(':pid', $pid, PDO::PARAM_INT);
         $cstmt->bindValue(':checkupLimit', $checkupLimit, PDO::PARAM_INT);
         $cstmt->bindValue(':checkupOffset', $checkupOffset, PDO::PARAM_INT);
@@ -158,19 +155,11 @@ if (isset($_GET['patient_id'])) {
     }
 
     $checkups = $cstmt->fetchAll(PDO::FETCH_ASSOC);
-
     $totalCheckupPages = max(1, ceil($totalCheckups / $checkupLimit));
 
     foreach ($checkups as $i => $c) {
-
-        $mstmt = $db->prepare("
-            SELECT pm.*
-            FROM prescribed_medications pm
-            WHERE pm.checkup_id = ?
-        ");
-
+        $mstmt = $db->prepare("SELECT pm.* FROM prescribed_medications pm WHERE pm.checkup_id = ?");
         $mstmt->execute([$c['checkup_id']]);
-
         $checkups[$i]['medications'] = $mstmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }
@@ -189,6 +178,9 @@ if (isset($_GET['patient_id'])) {
 .folder-card { transition:.2s; }
 .folder-card:hover { transform: translateY(-4px); }
 .sb-sidenav .nav-link.active { background-color:#062e6bff !important; color:#fff !important; font-weight:600; }
+.vitals-tile { background:#f8f9fa; border:1px solid #dee2e6; border-radius:8px; padding:10px 6px; text-align:center; }
+.vitals-tile .label { font-size:0.75rem; color:#6c757d; margin-bottom:4px; }
+.vitals-tile .value { font-size:1rem; font-weight:600; color:#062e6b; }
 </style>
 </head>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -227,18 +219,19 @@ function confirmSave() {
 <div id="layoutSidenav_nav"><?php include "../Includes/doctorSidebar.php"; ?></div>
 <div id="layoutSidenav_content">
 <main class="container-fluid px-4 py-4">
+
 <?php if (!empty($error)): ?>
 <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
 <?php endif; ?>
 
 <!-- ================= PATIENT SEARCH ================= -->
 <form class="row g-2 mb-4">
-<div class="col-md-4">
-<input type="text" name="search" class="form-control" placeholder="Search patient..." value="<?= htmlspecialchars($search) ?>">
-</div>
-<div class="col-md-2">
-<button class="btn btn-primary w-100"><i class="fa fa-search"></i> Search</button>
-</div>
+    <div class="col-md-4">
+        <input type="text" name="search" class="form-control" placeholder="Search patient..." value="<?= htmlspecialchars($search) ?>">
+    </div>
+    <div class="col-md-2">
+        <button class="btn btn-primary w-100"><i class="fa fa-search"></i> Search</button>
+    </div>
 </form>
 
 <?php if (!$patient): ?>
@@ -246,42 +239,43 @@ function confirmSave() {
 <div class="row g-4">
 <?php foreach ($patients as $p): ?>
 <div class="col-md-4">
-<div class="card shadow folder-card">
-<div class="section-header">
-<i class="fa fa-folder me-2"></i><?= htmlspecialchars($p['full_name']) ?>
-</div>
-<div class="card-body">
-<p>
-<strong>Sex:</strong> <?= $p['sex'] ?><br>
-<strong>Age:</strong> <?= $p['age'] ?><br>
-<strong>Contact:</strong> <?= $p['contact_number'] ?>
-</p>
-<a href="?patient_id=<?= $p['patient_id'] ?>" class="btn btn-outline-primary w-100">
-<i class="fa fa-folder-open"></i> Open Records
-</a>
-</div>
-</div>
+    <div class="card shadow folder-card">
+        <div class="section-header">
+            <i class="fa fa-folder me-2"></i><?= htmlspecialchars($p['full_name']) ?>
+        </div>
+        <div class="card-body">
+            <p>
+                <strong>Sex:</strong> <?= $p['sex'] ?><br>
+                <strong>Age:</strong> <?= $p['age'] ?><br>
+                <strong>Contact:</strong> <?= $p['contact_number'] ?>
+            </p>
+            <a href="?patient_id=<?= $p['patient_id'] ?>" class="btn btn-outline-primary w-100">
+                <i class="fa fa-folder-open"></i> Open Records
+            </a>
+        </div>
+    </div>
 </div>
 <?php endforeach; ?>
 </div>
 
 <nav class="mt-4">
-<ul class="pagination justify-content-center">
-<li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
-<a class="page-link" href="?page=<?= $page-1 ?>&search=<?= urlencode($search) ?>">Previous</a>
-</li>
-<?php for ($i=1;$i<=$totalPages;$i++): ?>
-<li class="page-item <?= ($i==$page)?'active':'' ?>">
-<a class="page-link" href="?page=<?= $i ?>&search=<?= urlencode($search) ?>"><?= $i ?></a>
-</li>
-<?php endfor; ?>
-<li class="page-item <?= ($page >= $totalPages) ? 'disabled' : '' ?>">
-<a class="page-link" href="?page=<?= $page+1 ?>&search=<?= urlencode($search) ?>">Next</a>
-</li>
-</ul>
+    <ul class="pagination justify-content-center">
+        <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+            <a class="page-link" href="?page=<?= $page-1 ?>&search=<?= urlencode($search) ?>">Previous</a>
+        </li>
+        <?php for ($i=1;$i<=$totalPages;$i++): ?>
+        <li class="page-item <?= ($i==$page)?'active':'' ?>">
+            <a class="page-link" href="?page=<?= $i ?>&search=<?= urlencode($search) ?>"><?= $i ?></a>
+        </li>
+        <?php endfor; ?>
+        <li class="page-item <?= ($page >= $totalPages) ? 'disabled' : '' ?>">
+            <a class="page-link" href="?page=<?= $page+1 ?>&search=<?= urlencode($search) ?>">Next</a>
+        </li>
+    </ul>
 </nav>
 
 <?php else: ?>
+
 <div class="d-flex justify-content-between mb-3">
     <a href="doctor_medical_records_management.php" class="btn btn-secondary">
         <i class="fa fa-arrow-left"></i> Back
@@ -296,275 +290,300 @@ function confirmSave() {
 <div class="modal-dialog modal-xl modal-dialog-scrollable">
 <div class="modal-content">
 
-<div class="modal-header" style="background:#062e6b;">
-    <h5 class="modal-title text-white" id="newRecordModalLabel">
-        <i class="fa-solid fa-file-medical me-2"></i> Add New Record
-    </h5>
-    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-</div>
-
-<div class="modal-body">
-<form method="POST" id="newRecordForm">
-<input type="hidden" name="patient_id" value="<?= $patient['patient_id'] ?>">
-<input type="hidden" name="save_all" value="1">
-
-<!-- Patient Info (read-only) + Chief Complaint + Vitals -->
-<div class="card mb-4 shadow-sm">
-<div class="section-header"><i class="fa-solid fa-user me-2"></i> Patient Information</div>
-<div class="card-body row g-3">
-    <div class="col-md-6"><label class="form-label text-muted small">Full Name</label><input class="form-control" value="<?= htmlspecialchars($patient['full_name']) ?>" readonly></div>
-    <div class="col-md-3"><label class="form-label text-muted small">Birthday</label><input class="form-control" value="<?= htmlspecialchars($patient['birthday']) ?>" readonly></div>
-    <div class="col-md-3"><label class="form-label text-muted small">Age</label><input class="form-control" value="<?= htmlspecialchars($patient['age']) ?>" readonly></div>
-    <div class="col-md-3"><label class="form-label text-muted small">Sex</label><input class="form-control" value="<?= htmlspecialchars($patient['sex']) ?>" readonly></div>
-    <div class="col-md-3"><label class="form-label text-muted small">Civil Status</label><input class="form-control" value="<?= htmlspecialchars($patient['civil_status']) ?>" readonly></div>
-    <div class="col-md-3"><label class="form-label text-muted small">Contact Number</label><input class="form-control" value="<?= htmlspecialchars($patient['contact_number']) ?>" readonly></div>
-    <div class="col-md-3"><label class="form-label text-muted small">Occupation</label><input class="form-control" value="<?= htmlspecialchars($patient['occupation']) ?>" readonly></div>
-    <div class="col-md-6"><label class="form-label text-muted small">Contact Person</label><input class="form-control" value="<?= htmlspecialchars($patient['contact_person']) ?>" readonly></div>
-    <div class="col-md-3"><label class="form-label text-muted small">Contact Person Age</label><input class="form-control" value="<?= htmlspecialchars($patient['contact_person_age']) ?>" readonly></div>
-    <div class="col-md-3"><label class="form-label text-muted small">Religion</label><input class="form-control" value="<?= htmlspecialchars($patient['religion']) ?>" readonly></div>
-    <div class="col-12"><label class="form-label text-muted small">Address</label><textarea class="form-control" readonly><?= htmlspecialchars($patient['address']) ?></textarea></div>
-
-    <!-- Chief Complaint (moved here from Checkup card) -->
-    <div class="col-12">
-        <label class="form-label text-muted small">Chief Complaint</label>
-        <textarea name="chief_complaint" class="form-control" placeholder="Chief Complaint" readonly><?= htmlspecialchars($pendingCheckup['chief_complaint'] ?? '') ?></textarea>
+    <div class="modal-header" style="background:#062e6b;">
+        <h5 class="modal-title text-white" id="newRecordModalLabel">
+            <i class="fa-solid fa-file-medical me-2"></i> Add New Record
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
     </div>
 
-    <!-- Vitals (moved here from Checkup card) -->
-    <div class="col-12">
-        <div class="row g-2">
-           <div class="col">
-    <label class="form-label text-muted small">BP</label>
-    <input name="blood_pressure" class="form-control text-center" placeholder="BP" value="<?= htmlspecialchars($pendingCheckup['blood_pressure'] ?? '') ?>">
-</div>
+    <div class="modal-body">
+    <form method="POST" id="newRecordForm">
+    <input type="hidden" name="patient_id" value="<?= $patient['patient_id'] ?>">
+    <input type="hidden" name="save_all" value="1">
 
-<div class="col">
-    <label class="form-label text-muted small">RR</label>
-    <input
-        name="respiratory_rate"
-        class="form-control text-center"
-        placeholder="RR"
-        readonly
-        value="<?= htmlspecialchars($pendingCheckup['respiratory_rate'] ?? '') ?>"
-    >
-</div>
-
-<div class="col">
-    <label class="form-label text-muted small">WT</label>
-    <input
-        name="weight"
-        class="form-control text-center"
-        placeholder="WT"
-        readonly
-        value="<?= htmlspecialchars($pendingCheckup['weight'] ?? '') ?>"
-    >
-</div>
-
-<div class="col">
-    <label class="form-label text-muted small">HR</label>
-    <input
-        name="heart_rate"
-        class="form-control text-center"
-        placeholder="HR"
-        readonly
-        value="<?= htmlspecialchars($pendingCheckup['heart_rate'] ?? '') ?>"
-    >
-</div>
-
-<div class="col">
-    <label class="form-label text-muted small">TEMP</label>
-    <input
-        name="temperature"
-        class="form-control text-center"
-        placeholder="TEMP"
-        readonly
-        value="<?= htmlspecialchars($pendingCheckup['temperature'] ?? '') ?>"
-    >
-</div>
+    <!-- Patient Info (read-only) -->
+    <div class="card mb-4 shadow-sm">
+        <div class="section-header"><i class="fa-solid fa-user me-2"></i> Patient Information</div>
+        <div class="card-body row g-3">
+            <div class="col-md-6"><label class="form-label text-muted small">Full Name</label><input class="form-control" value="<?= htmlspecialchars($patient['full_name']) ?>" readonly></div>
+            <div class="col-md-3"><label class="form-label text-muted small">Birthday</label><input class="form-control" value="<?= htmlspecialchars($patient['birthday']) ?>" readonly></div>
+            <div class="col-md-3"><label class="form-label text-muted small">Age</label><input class="form-control" value="<?= htmlspecialchars($patient['age']) ?>" readonly></div>
+            <div class="col-md-3"><label class="form-label text-muted small">Sex</label><input class="form-control" value="<?= htmlspecialchars($patient['sex']) ?>" readonly></div>
+            <div class="col-md-3"><label class="form-label text-muted small">Civil Status</label><input class="form-control" value="<?= htmlspecialchars($patient['civil_status']) ?>" readonly></div>
+            <div class="col-md-3"><label class="form-label text-muted small">Contact Number</label><input class="form-control" value="<?= htmlspecialchars($patient['contact_number']) ?>" readonly></div>
+            <div class="col-md-3"><label class="form-label text-muted small">Occupation</label><input class="form-control" value="<?= htmlspecialchars($patient['occupation']) ?>" readonly></div>
+            <div class="col-md-6"><label class="form-label text-muted small">Contact Person</label><input class="form-control" value="<?= htmlspecialchars($patient['contact_person']) ?>" readonly></div>
+            <div class="col-md-3"><label class="form-label text-muted small">Contact Person Age</label><input class="form-control" value="<?= htmlspecialchars($patient['contact_person_age']) ?>" readonly></div>
+            <div class="col-md-3"><label class="form-label text-muted small">Religion</label><input class="form-control" value="<?= htmlspecialchars($patient['religion']) ?>" readonly></div>
+            <div class="col-12"><label class="form-label text-muted small">Address</label><textarea class="form-control" readonly><?= htmlspecialchars($patient['address']) ?></textarea></div>
         </div>
     </div>
-</div>
-</div>
 
-<!-- Checkup (no more Chief Complaint or Vitals here) -->
-<div class="card mb-4 shadow-sm">
-<div class="section-header"><i class="fa-solid fa-stethoscope me-2"></i> Checkup</div>
-<div class="card-body">
-    <div class="row g-3">
-        <div class="col-md-4"><label class="form-label text-muted small">Checkup Date</label><input type="date" name="checkup_date" class="form-control" required></div>
-        <div class="col-md-8"><label class="form-label text-muted small">Diagnosis</label><input name="diagnosis" class="form-control" placeholder="Diagnosis"></div>
+    <!-- Chief Complaint & Vitals (from pending checkup, read-only display in modal) -->
+    <div class="card mb-4 shadow-sm">
+        <div class="section-header d-flex justify-content-between align-items-center">
+            <span><i class="fa-solid fa-heart-pulse me-2"></i> Presenting Complaint &amp; Vitals</span>
+            <?php if (!empty($pendingCheckup['checkup_date'])): ?>
+            <span class="badge bg-light text-dark fs-6">
+                </i> Date Recorded: <?= htmlspecialchars($pendingCheckup['checkup_date']) ?>
+            </span>
+            <?php endif; ?>
+        </div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label text-muted small">Chief Complaint</label>
+                <textarea name="chief_complaint" class="form-control" readonly><?= htmlspecialchars($pendingCheckup['chief_complaint'] ?? '') ?></textarea>
+            </div>
+            <div class="row g-2">
+                <div class="col">
+                    <label class="form-label text-muted small">BP</label>
+                    <input name="blood_pressure" class="form-control text-center" placeholder="BP" value="<?= htmlspecialchars($pendingCheckup['blood_pressure'] ?? '') ?>">
+                </div>
+                <div class="col">
+                    <label class="form-label text-muted small">RR</label>
+                    <input name="respiratory_rate" class="form-control text-center" placeholder="RR" readonly value="<?= htmlspecialchars($pendingCheckup['respiratory_rate'] ?? '') ?>">
+                </div>
+                <div class="col">
+                    <label class="form-label text-muted small">WT</label>
+                    <input name="weight" class="form-control text-center" placeholder="WT" readonly value="<?= htmlspecialchars($pendingCheckup['weight'] ?? '') ?>">
+                </div>
+                <div class="col">
+                    <label class="form-label text-muted small">HR</label>
+                    <input name="heart_rate" class="form-control text-center" placeholder="HR" readonly value="<?= htmlspecialchars($pendingCheckup['heart_rate'] ?? '') ?>">
+                </div>
+                <div class="col">
+                    <label class="form-label text-muted small">TEMP</label>
+                    <input name="temperature" class="form-control text-center" placeholder="TEMP" readonly value="<?= htmlspecialchars($pendingCheckup['temperature'] ?? '') ?>">
+                </div>
+            </div>
+        </div>
     </div>
-    <div class="mt-3"><label class="form-label text-muted small">History of Present Illness</label><textarea name="history_present_illness" class="form-control" placeholder="History of Present Illness"></textarea></div>
-    <div class="row g-3 mt-3">
-    <div class="col-md-10 mt-2">
-        <label class="form-label text-muted small">Doctor</label>
-        <select class="form-select" id="doctorDropdown" onchange="fillDoctorFields(this)" required>
-            <option value="">— Select Doctor —</option>
-            <?php foreach ($doctors as $doc): ?>
-                <option value="<?= $doc['doc_id'] ?>"
-                        data-fullname="<?= htmlspecialchars($doc['doc_fullname']) ?>">
-                    <?= htmlspecialchars($doc['doc_fullname']) ?>
-                </option>
-            <?php endforeach; ?>
-        </select>
-        <input type="hidden" name="doc_id" id="doc_id_input">
-        <input type="hidden" name="doc_fullname" id="doc_fullname_input">
+
+    <!-- Checkup -->
+    <div class="card mb-4 shadow-sm">
+        <div class="section-header"><i class="fa-solid fa-stethoscope me-2"></i> Checkup</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4"><label class="form-label text-muted small">Checkup Date</label><input type="date" name="checkup_date" class="form-control" required></div>
+                <div class="col-md-8"><label class="form-label text-muted small">Diagnosis</label><input name="diagnosis" class="form-control" placeholder="Diagnosis"></div>
+            </div>
+            <div class="mt-3"><label class="form-label text-muted small">History of Present Illness</label><textarea name="history_present_illness" class="form-control" placeholder="History of Present Illness"></textarea></div>
+            <div class="row g-3 mt-3">
+                <div class="col-md-10 mt-2">
+                    <label class="form-label text-muted small">Doctor</label>
+                    <select class="form-select" id="doctorDropdown" onchange="fillDoctorFields(this)" required>
+                        <option value="">— Select Doctor —</option>
+                        <?php foreach ($doctors as $doc): ?>
+                            <option value="<?= $doc['doc_id'] ?>" data-fullname="<?= htmlspecialchars($doc['doc_fullname']) ?>">
+                                <?= htmlspecialchars($doc['doc_fullname']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <input type="hidden" name="doc_id" id="doc_id_input">
+                    <input type="hidden" name="doc_fullname" id="doc_fullname_input">
+                </div>
+            </div>
+        </div>
     </div>
-</div>
-</div>
-</div>
 
-<!-- Medications -->
-<div class="card mb-2 shadow-sm">
-<div class="section-header"><i class="fa-solid fa-pills me-2"></i> Medications</div>
-<div class="card-body">
-    <div id="medications"></div>
-    <button type="button" class="btn btn-outline-secondary mt-2" onclick="addMedication()">
-        <i class="fa-solid fa-plus"></i> Add Medication
-    </button>
-</div>
-</div>
+    <!-- Medications -->
+    <div class="card mb-2 shadow-sm">
+        <div class="section-header"><i class="fa-solid fa-pills me-2"></i> Medications</div>
+        <div class="card-body">
+            <div id="medications"></div>
+            <button type="button" class="btn btn-outline-secondary mt-2" onclick="addMedication()">
+                <i class="fa-solid fa-plus"></i> Add Medication
+            </button>
+        </div>
+    </div>
 
-</form>
-</div>
+    </form>
+    </div>
 
-<div class="modal-footer">
-    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-    <button type="button" class="btn btn-primary" onclick="confirmSave()">
-        <i class="fa-solid fa-floppy-disk me-1"></i> Save Record
-    </button>
-</div>
+    <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="confirmSave()">
+            <i class="fa-solid fa-floppy-disk me-1"></i> Save Record
+        </button>
+    </div>
 
 </div>
 </div>
 </div>
+<!-- ================= END MODAL ================= -->
 
 <!-- ================= PATIENT INFO DISPLAY ================= -->
 <div class="card shadow mb-4">
-<div class="section-header">
-<i class="fa fa-user me-2"></i> Patient Information
+    <div class="section-header">
+        <i class="fa fa-user me-2"></i> Patient Information
+    </div>
+    <div class="card-body">
+        <div class="row mb-2">
+            <div class="col-md-4"><strong>Name:</strong> <?= htmlspecialchars($patient['full_name']) ?></div>
+            <div class="col-md-2"><strong>Age:</strong> <?= $patient['age'] ?></div>
+            <div class="col-md-2"><strong>Sex:</strong> <?= $patient['sex'] ?></div>
+            <div class="col-md-4"><strong>Contact:</strong> <?= $patient['contact_number'] ?></div>
+        </div>
+        <div class="row mb-2">
+            <div class="col-md-4"><strong>Civil Status:</strong> <?= htmlspecialchars($patient['civil_status']) ?></div>
+            <div class="col-md-2"><strong>Religion:</strong> <?= htmlspecialchars($patient['religion']) ?></div>
+            <div class="col-md-3"><strong>Occupation:</strong> <?= htmlspecialchars($patient['occupation']) ?></div>
+        </div>
+        <div class="row mb-2">
+            <div class="col-md-4"><strong>Contact Person:</strong> <?= htmlspecialchars($patient['contact_person']) ?></div>
+            <div class="col-md-2"><strong>Contact Person Age:</strong> <?= htmlspecialchars($patient['contact_person_age']) ?></div>
+        </div>
+        <div class="mt-2">
+            <strong>Address:</strong> <?= htmlspecialchars($patient['address']) ?>
+        </div>
+    </div>
 </div>
-<div class="card-body">
-<div class="row mb-2">
-<div class="col-md-4"><strong>Name:</strong> <?= htmlspecialchars($patient['full_name']) ?></div>
-<div class="col-md-2"><strong>Age:</strong> <?= $patient['age'] ?></div>
-<div class="col-md-2"><strong>Sex:</strong> <?= $patient['sex'] ?></div>
-<div class="col-md-4"><strong>Contact:</strong> <?= $patient['contact_number'] ?></div>
-</div>
-<div class="row mb-2">
-<div class="col-md-4"><strong>Civil Status:</strong> <?= htmlspecialchars($patient['civil_status']) ?></div>
-<div class="col-md-2"><strong>Religion:</strong> <?= htmlspecialchars($patient['religion']) ?></div>
-<div class="col-md-3"><strong>Occupation:</strong> <?= htmlspecialchars($patient['occupation']) ?></div>
-</div>
-<div class="row mb-2">
-<div class="col-md-4"><strong>Contact Person:</strong> <?= htmlspecialchars($patient['contact_person']) ?></div>
-<div class="col-md-2"><strong>Contact Person Age:</strong> <?= htmlspecialchars($patient['contact_person_age']) ?></div>
-</div>
-<div class="mt-2">
-<strong>Address:</strong> <?= htmlspecialchars($patient['address']) ?>
-</div>
-<div class="mt-2"><strong>Chief Complaint:</strong> <?= htmlspecialchars($pendingCheckup['chief_complaint'] ?? '') ?></div>
-<div class="row mb-2">
-<div class="col-md-2"><strong>BP:</strong> <?= htmlspecialchars($pendingCheckup['blood_pressure'] ?? '') ?></div>
-<div class="col-md-2"><strong>RR:</strong> <?= htmlspecialchars($pendingCheckup['respiratory_rate'] ?? '') ?></div>
-<div class="col-md-2"><strong>WT:</strong> <?= htmlspecialchars($pendingCheckup['weight'] ?? '') ?></div>
-<div class="col-md-2"><strong>HR:</strong> <?= htmlspecialchars($pendingCheckup['heart_rate'] ?? '') ?></div>
-<div class="col-md-2"><strong>TEMP:</strong> <?= htmlspecialchars($pendingCheckup['temperature'] ?? '') ?></div>
-</div>
-</div>
+
+<!-- ================= PRESENTING COMPLAINT & VITALS DISPLAY ================= -->
+<div class="card shadow mb-4">
+    <div class="section-header d-flex justify-content-between align-items-center">
+        <span>
+            <i class="fa-solid fa-heart-pulse me-2"></i> Presenting Complaint &amp; Vitals
+        </span>
+        <?php if (!empty($pendingCheckup['checkup_date'])): ?>
+        <span class="badge bg-light text-dark fs-6">
+            <i class="fa fa-calendar me-1"></i> Date Recorded: <?= htmlspecialchars($pendingCheckup['checkup_date']) ?>
+        </span>
+        <?php endif; ?>
+    </div>
+    <div class="card-body">
+        <div class="mb-3">
+            <strong>Chief Complaint:</strong>
+            <p class="mt-1 mb-0"><?= htmlspecialchars($pendingCheckup['chief_complaint'] ?? '—') ?></p>
+        </div>
+        <hr>
+        <div class="row g-3 text-center" style="margin-top: 5px;">
+            <div class="col">
+                <div class="vitals-tile">
+                    <div class="label"><strong>Blood Pressure</strong></div>
+                    <div class="value"><?= htmlspecialchars($pendingCheckup['blood_pressure'] ?? '—') ?></div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="vitals-tile">
+                    <div class="label"><strong>Respiratory Rate</strong></div>
+                    <div class="value"><?= htmlspecialchars($pendingCheckup['respiratory_rate'] ?? '—') ?></div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="vitals-tile">
+                    <div class="label"><strong>Weight</strong></div>
+                    <div class="value"><?= htmlspecialchars($pendingCheckup['weight'] ?? '—') ?></div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="vitals-tile">
+                    <div class="label"><strong>Heart Rate</strong></div>
+                    <div class="value"><?= htmlspecialchars($pendingCheckup['heart_rate'] ?? '—') ?></div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="vitals-tile">
+                    <div class="label"><strong>Temperature</strong></div>
+                    <div class="value"><?= htmlspecialchars($pendingCheckup['temperature'] ?? '—') ?></div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- ================= CHECKUP DATE FILTER ================= -->
 <form class="row g-2 mb-4">
-<div class="col-md-3">
-<input type="date" name="checkup_date" class="form-control" value="<?= htmlspecialchars($searchDate) ?>">
-<input type="hidden" name="patient_id" value="<?= $patient['patient_id'] ?>">
-</div>
-<div class="col-md-2">
-<button class="btn btn-primary w-100"><i class="fa fa-search"></i> Search for Checkup Date</button>
-</div>
+    <div class="col-md-3">
+        <input type="date" name="checkup_date" class="form-control" value="<?= htmlspecialchars($searchDate) ?>">
+        <input type="hidden" name="patient_id" value="<?= $patient['patient_id'] ?>">
+    </div>
+    <div class="col-md-2">
+        <button class="btn btn-primary w-100"><i class="fa fa-search"></i> Search for Checkup Date</button>
+    </div>
 </form>
 
 <?php if (!empty($checkups)): ?>
 <?php foreach ($checkups as $c): ?>
 <div class="card shadow mb-4">
-<div class="section-header">
-<i class="fa fa-stethoscope me-2"></i>
-Checkup — <?= $c['checkup_date'] ?> (Doctor: <?= htmlspecialchars($c['doc_fullname']) ?>)
-</div>
-<div class="card-body">
-<p><strong>Diagnosis:</strong> <?= htmlspecialchars($c['diagnosis']) ?></p>
-<p><strong>Chief Complaint:</strong> <?= htmlspecialchars($c['chief_complaint']) ?></p>
-<p><strong>HPI:</strong> <?= htmlspecialchars($c['history_present_illness']) ?></p>
+    <div class="section-header">
+        <i class="fa fa-stethoscope me-2"></i>
+        Checkup — <?= $c['checkup_date'] ?> (Doctor: <?= htmlspecialchars($c['doc_fullname']) ?>)
+    </div>
+    <div class="card-body">
+        <p><strong>Diagnosis:</strong> <?= htmlspecialchars($c['diagnosis']) ?></p>
+        <p><strong>Chief Complaint:</strong> <?= htmlspecialchars($c['chief_complaint']) ?></p>
+        <p><strong>HPI:</strong> <?= htmlspecialchars($c['history_present_illness']) ?></p>
 
-<hr>
-<div class="row text-center">
-<div class="col">BP<br><strong><?= $c['blood_pressure'] ?></strong></div>
-<div class="col">RR<br><strong><?= $c['respiratory_rate'] ?></strong></div>
-<div class="col">WT<br><strong><?= $c['weight'] ?></strong></div>
-<div class="col">HR<br><strong><?= $c['heart_rate'] ?></strong></div>
-<div class="col">TEMP<br><strong><?= $c['temperature'] ?></strong></div>
-</div>
+        <hr>
+        <div class="row text-center">
+            <div class="col">BP<br><strong><?= $c['blood_pressure'] ?></strong></div>
+            <div class="col">RR<br><strong><?= $c['respiratory_rate'] ?></strong></div>
+            <div class="col">WT<br><strong><?= $c['weight'] ?></strong></div>
+            <div class="col">HR<br><strong><?= $c['heart_rate'] ?></strong></div>
+            <div class="col">TEMP<br><strong><?= $c['temperature'] ?></strong></div>
+        </div>
 
-<?php if (!empty($c['medications'])): ?>
-<hr>
-<h5>Medications</h5>
-<table class="table table-bordered">
-<thead>
-<tr>
-<th>Generic</th><th>Brand</th><th>Dose</th><th>Amount</th><th>Frequency</th><th>Duration</th>
-</tr>
-</thead>
-<tbody>
-<?php foreach ($c['medications'] as $m): ?>
-<tr>
-<td><?= htmlspecialchars($m['pres_generic_name']) ?></td>
-<td><?= htmlspecialchars($m['pres_brand_name']) ?></td>
-<td><?= htmlspecialchars($m['dose']) ?></td>
-<td><?= htmlspecialchars($m['amount']) ?></td>
-<td><?= htmlspecialchars($m['frequency']) ?></td>
-<td><?= htmlspecialchars($m['duration']) ?></td>
-</tr>
-<?php endforeach; ?>
-</tbody>
-</table>
-<?php endif; ?>
+        <?php if (!empty($c['medications'])): ?>
+        <hr>
+        <h5>Medications</h5>
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Generic</th><th>Brand</th><th>Dose</th><th>Amount</th><th>Frequency</th><th>Duration</th>
+                </tr>
+            </thead>
+            <tbody>
+            <?php foreach ($c['medications'] as $m): ?>
+                <tr>
+                    <td><?= htmlspecialchars($m['pres_generic_name']) ?></td>
+                    <td><?= htmlspecialchars($m['pres_brand_name']) ?></td>
+                    <td><?= htmlspecialchars($m['dose']) ?></td>
+                    <td><?= htmlspecialchars($m['amount']) ?></td>
+                    <td><?= htmlspecialchars($m['frequency']) ?></td>
+                    <td><?= htmlspecialchars($m['duration']) ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php endif; ?>
 
-<div class="mt-3">
-<a href="export_prescription.php?checkup_id=<?= $c['checkup_id'] ?>" class="btn btn-danger">
-   <i class="fa fa-file-pdf"></i> Export Prescription PDF
-</a>
-</div>
-
-<div class="mt-3">
-<a href="doctor_followup_checkup.php?patient_id=<?= $patient['patient_id'] ?>&checkup_id=<?= $c['checkup_id'] ?>" class="btn btn-success btn-sm">
-<i class="fa fa-plus"></i> Create a Follow Up Checkup
-</a>
-</div>
-</div>
+        <div class="mt-3">
+            <a href="export_prescription.php?checkup_id=<?= $c['checkup_id'] ?>" class="btn btn-danger">
+                <i class="fa fa-file-pdf"></i> Export Prescription PDF
+            </a>
+        </div>
+        <div class="mt-3">
+            <a href="doctor_followup_checkup.php?patient_id=<?= $patient['patient_id'] ?>&checkup_id=<?= $c['checkup_id'] ?>" class="btn btn-success btn-sm">
+                <i class="fa fa-plus"></i> Create a Follow Up Checkup
+            </a>
+        </div>
+    </div>
 </div>
 <?php endforeach; ?>
 
 <!-- ================= CHECKUP PAGINATION ================= -->
 <nav class="mt-4">
-<ul class="pagination justify-content-center">
-<li class="page-item <?= ($checkupPage <= 1) ? 'disabled' : '' ?>">
-<a class="page-link" href="?patient_id=<?= $patient['patient_id'] ?>&checkup_date=<?= urlencode($searchDate) ?>&checkup_page=<?= $checkupPage-1 ?>">Previous</a>
-</li>
-<?php for ($i=1;$i<=$totalCheckupPages;$i++): ?>
-<li class="page-item <?= ($i==$checkupPage)?'active':'' ?>">
-<a class="page-link" href="?patient_id=<?= $patient['patient_id'] ?>&checkup_date=<?= urlencode($searchDate) ?>&checkup_page=<?= $i ?>"><?= $i ?></a>
-</li>
-<?php endfor; ?>
-<li class="page-item <?= ($checkupPage >= $totalCheckupPages) ? 'disabled' : '' ?>">
-<a class="page-link" href="?patient_id=<?= $patient['patient_id'] ?>&checkup_date=<?= urlencode($searchDate) ?>&checkup_page=<?= $checkupPage+1 ?>">Next</a>
-</li>
-</ul>
+    <ul class="pagination justify-content-center">
+        <li class="page-item <?= ($checkupPage <= 1) ? 'disabled' : '' ?>">
+            <a class="page-link" href="?patient_id=<?= $patient['patient_id'] ?>&checkup_date=<?= urlencode($searchDate) ?>&checkup_page=<?= $checkupPage-1 ?>">Previous</a>
+        </li>
+        <?php for ($i=1;$i<=$totalCheckupPages;$i++): ?>
+        <li class="page-item <?= ($i==$checkupPage)?'active':'' ?>">
+            <a class="page-link" href="?patient_id=<?= $patient['patient_id'] ?>&checkup_date=<?= urlencode($searchDate) ?>&checkup_page=<?= $i ?>"><?= $i ?></a>
+        </li>
+        <?php endfor; ?>
+        <li class="page-item <?= ($checkupPage >= $totalCheckupPages) ? 'disabled' : '' ?>">
+            <a class="page-link" href="?patient_id=<?= $patient['patient_id'] ?>&checkup_date=<?= urlencode($searchDate) ?>&checkup_page=<?= $checkupPage+1 ?>">Next</a>
+        </li>
+    </ul>
 </nav>
 
 <?php else: ?>
 <div class="alert alert-warning">No checkups found for this patient<?= $searchDate ? " on $searchDate" : "" ?>.</div>
 <?php endif; ?>
+
 <?php endif; ?>
 </main>
 <?php include "../Includes/footer.html"; ?>
