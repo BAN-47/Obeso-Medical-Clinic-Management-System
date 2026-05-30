@@ -43,15 +43,20 @@ public function searchByName($keyword){
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 public function all(){
-    $sql ="SELECT * FROM {$this->table} ORDER BY staff_created_at DESC";
+     $sql = "SELECT * FROM {$this->table}
+                WHERE is_deleted = 0
+                ORDER BY staff_id DESC";
     $stmt = $this->conn->prepare($sql);
     $stmt->execute();
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
-public function delete($STAFF_ID){
-    $sql = "DELETE FROM {$this->table} WHERE staff_id = :STAFF_ID";
-    $stmt = $this->conn->prepare($sql);
-    return $stmt->execute([":STAFF_ID" => $STAFF_ID]);
+   public function delete($id) {
+        $sql = "UPDATE {$this->table}
+                SET is_deleted = 1
+                WHERE staff_id = :id";
+
+        $stmt = $this->conn->prepare($sql);
+        return $stmt->execute([':id' => $id]);
 }
 public function update($STAFF_ID, $STAFF_FNAME, $STAFF_LNAME, $STAFF_MID_INIT, $STAFF_CONTACT, $STAFF_EMAIL){
     $sql = "UPDATE {$this->table} 

@@ -103,7 +103,7 @@ if (isset($_POST['update_inventory'])) {
                                     <td><?= $status ?></td>
                                     <td>
                                         <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal<?= $row['inventory_id'] ?>">
-                                            <i class="fas fa-edit"></i>
+                                            <i class="fas fa-edit"></i>Edit
                                         </button>
                                     </td>
                                 </tr>

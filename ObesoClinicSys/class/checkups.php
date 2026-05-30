@@ -19,44 +19,59 @@ class Checkup {
     }
 
     public function viewAll(){
-        return $this->conn->query("SELECT * FROM {$this->table}")->fetchAll();
+
+        $sql = "
+            SELECT *
+            FROM {$this->table}
+            WHERE is_deleted = 0
+            ORDER BY checkup_date DESC
+        ";
+
+        return $this->conn->query($sql)->fetchAll(PDO::FETCH_ASSOC);
     }
     
     /* ================= FILTER CHECKUPS ================= */
-public function filter($doctor_id = null, $date = null) {
+ public function filter($doctor_id = null, $date = null) {
 
-    $sql = "
-        SELECT c.*, p.full_name AS patient_name
-        FROM checkups c
-        JOIN patients p ON p.patient_id = c.patient_id
-        WHERE 1
-    ";
+        $sql = "
+            SELECT c.*, p.full_name AS patient_name
+            FROM checkups c
+            JOIN patients p ON p.patient_id = c.patient_id
+            WHERE c.is_deleted = 0
+        ";
 
-    $params = [];
+        $params = [];
 
-    if (!empty($doctor_id)) {
-        $sql .= " AND c.doc_id = :doc_id";
-        $params['doc_id'] = $doctor_id;
+        if (!empty($doctor_id)) {
+            $sql .= " AND c.doc_id = :doc_id";
+            $params['doc_id'] = $doctor_id;
+        }
+
+        if (!empty($date)) {
+            $sql .= " AND c.checkup_date = :checkup_date";
+            $params['checkup_date'] = $date;
+        }
+
+        $sql .= " ORDER BY c.checkup_date DESC";
+
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute($params);
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-
-    if (!empty($date)) {
-        $sql .= " AND c.checkup_date = :checkup_date";
-        $params['checkup_date'] = $date;
-    }
-
-    $sql .= " ORDER BY c.checkup_date DESC";
-
-    $stmt = $this->conn->prepare($sql);
-    $stmt->execute($params);
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
 
 /* ================= DELETE CHECKUP ================= */
-public function delete($id) {
-    $stmt = $this->conn->prepare("
-        DELETE FROM checkups WHERE checkup_id = :id
-    ");
-    return $stmt->execute(['id' => $id]);
-}
+    public function delete($id) {
+
+        $stmt = $this->conn->prepare("
+            UPDATE checkups
+            SET is_deleted = 1
+            WHERE checkup_id = :id
+        ");
+
+        return $stmt->execute([
+            'id' => $id
+        ]);
+    }
 
 }
