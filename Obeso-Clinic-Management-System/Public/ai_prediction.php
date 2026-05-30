@@ -1,22 +1,24 @@
 <div class="card shadow mb-4 border-start border-4 border-primary">
 <div class="card-body">
 
-  <h5>🧠 AI Illness Prediction (Real-Time)</h5>
+  <h5>🧠 AI Illness Prediction <span class="badge bg-primary ms-1" style="font-size:0.65rem;">Real-Time</span></h5>
   <p class="text-muted small mb-3">
-    Check all symptoms present then click Predict.
+    Fill in the patient vitals and symptoms, then click <strong>Predict</strong>.
+    The AI will use this patient's past medical records to improve accuracy.
   </p>
 
+  <!-- Symptom Checkboxes -->
   <div class="row g-2 mb-3">
     <?php
     $symptoms = [
-      'fever'       => 'Fever',
-      'cough'       => 'Cough',
-      'headache'    => 'Headache',
-      'fatigue'     => 'Fatigue',
-      'body_pain'   => 'Body Pain',
-      'sore_throat' => 'Sore Throat',
-      'vomiting'    => 'Vomiting',
-      'diarrhea'    => 'Diarrhea'
+      'fever'       => '🌡️ Fever',
+      'cough'       => '😮‍💨 Cough',
+      'headache'    => '🤕 Headache',
+      'fatigue'     => '😴 Fatigue',
+      'body_pain'   => '💢 Body Pain',
+      'sore_throat' => '🤒 Sore Throat',
+      'vomiting'    => '🤢 Vomiting',
+      'diarrhea'    => '🚻 Diarrhea'
     ];
     foreach ($symptoms as $id => $label): ?>
       <div class="col-6 col-md-3">
@@ -33,6 +35,14 @@
     <?php endforeach; ?>
   </div>
 
+  <!-- Patient History Badge (shown when patient_id is present) -->
+  <div id="historyBadge" class="mb-3" style="display:none;">
+    <span class="badge bg-success">
+      <i class="fa fa-history me-1"></i>
+      <span id="historyBadgeText">Using patient history</span>
+    </span>
+  </div>
+
   <button class="btn btn-primary" onclick="predictDisease()" id="predictBtn">
     <i class="fa fa-brain me-1"></i> Predict Illness
   </button>
@@ -44,14 +54,26 @@
       <strong>🧠 Predicted Illness:</strong>
       <span id="predictedDisease" class="fs-5 fw-bold ms-2"></span>
       <span class="badge bg-warning text-dark ms-2" id="confidenceBadge"></span>
+      <span class="badge bg-success ms-1" id="historyUsedBadge" style="display:none;">
+        <i class="fa fa-history me-1"></i>History-informed
+      </span>
+    </div>
+
+    <!-- Future illness risk from history -->
+    <div id="futureRiskBlock" class="mb-3" style="display:none;">
+      <div class="alert alert-secondary py-2">
+        <strong>📂 Past Checkups Analyzed:</strong>
+        <span id="pastCheckupCount" class="badge bg-secondary ms-1"></span>
+        <span id="pastCheckupSummary" class="text-muted ms-2 small"></span>
+      </div>
     </div>
 
     <div id="futureOutcomeBlock" class="mb-3" style="display:none;">
-      <p class="mb-1"><strong>Future outcome risk:</strong>
-        <span id="futureOutcomeRisk" class="badge bg-success"></span>
-      </p>
-      <p id="futureOutcomeSummary" class="mb-1 text-muted"></p>
-      <p id="futureOutcomeRecommendation" class="small text-muted mb-0"></p>
+      <div class="alert alert-info mb-2">
+        <strong>📋 Recommended Followup:</strong>
+        <span id="futureOutcomeRisk" class="badge ms-2"></span>
+      </div>
+      <div id="futureOutcomeSummary" class="mb-2 text-muted"></div>
     </div>
 
     <p class="text-muted small mb-1">Top possibilities:</p>
@@ -65,51 +87,70 @@
 
   <!-- ERROR -->
   <div id="predictionError" class="alert alert-danger mt-3" style="display:none;">
-    ❌ Could not connect to AI server. Make sure Flask is running.
+    ❌ Could not connect to AI server.
   </div>
 
 </div>
 </div>
 
 <script>
+// Show history badge when patient_id is available
+(function() {
+    const pid = document.getElementById('patient_id')?.value;
+    if (pid && pid !== 'N/A' && pid !== '0' && pid !== '') {
+        document.getElementById('historyBadge').style.display = 'block';
+        document.getElementById('historyBadgeText').textContent =
+            'Will use past records for patient #' + pid;
+    }
+})();
+
 async function predictDisease() {
-    const btn = document.getElementById("predictBtn");
-    const resultDiv  = document.getElementById("predictionResult");
-    const errorDiv   = document.getElementById("predictionError");
+    const btn       = document.getElementById("predictBtn");
+    const resultDiv = document.getElementById("predictionResult");
+    const errorDiv  = document.getElementById("predictionError");
+    const apiUrl    = `http://${window.location.hostname}:8000/predict`;
 
     // Reset
     resultDiv.style.display = "none";
     errorDiv.style.display  = "none";
-    document.getElementById('futureOutcomeBlock').style.display = 'none';
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fa fa-spinner fa-spin me-1"></i> Predicting...';
+    document.getElementById('futureOutcomeBlock').style.display  = 'none';
+    document.getElementById('futureRiskBlock').style.display     = 'none';
+    document.getElementById('historyUsedBadge').style.display    = 'none';
 
-    // Build symptom payload
-    const symptoms = [
+    btn.disabled    = true;
+    btn.innerHTML   = '<i class="fa fa-spinner fa-spin me-1"></i> Predicting...';
+
+    const symptomKeys = [
         'fever','cough','headache','fatigue',
         'body_pain','sore_throat','vomiting','diarrhea'
     ];
 
-   const data = {
-    patient_id: "<?= $originalCheckup['patient_id'] ?? '' ?>",
-    chief_complaint: "<?= addslashes($originalCheckup['chief_complaint'] ?? '') ?>",
-    history_present_illness: "<?= addslashes($originalCheckup['history_present_illness'] ?? '') ?>",
-    blood_pressure: "<?= $originalCheckup['blood_pressure'] ?? '' ?>",
-    heart_rate: <?= (int)($originalCheckup['heart_rate'] ?? 0) ?>,
-    temperature: <?= (float)($originalCheckup['temperature'] ?? 0) ?>,
-    respiratory_rate: <?= (int)($originalCheckup['respiratory_rate'] ?? 0) ?>
-};
+    const data = {
+        patient_id:                document.getElementById('patient_id')?.value || "",
+        chief_complaint:           document.getElementById('chief_complaint')?.value || "",
+        history_present_illness:   document.getElementById('history_present_illness')?.value || "",
+        blood_pressure:            document.getElementById('blood_pressure')?.value || "0",
+        heart_rate:                parseInt(document.getElementById('heart_rate')?.value) || 0,
+        temperature:               parseFloat(document.getElementById('temperature')?.value) || 0,
+        respiratory_rate:          parseInt(document.getElementById('respiratory_rate')?.value) || 0
+    };
 
-symptoms.forEach(s => {
-    data[s] = document.getElementById(s).checked ? 1 : 0;
-});
+    symptomKeys.forEach(s => {
+        const el = document.getElementById(s);
+        data[s] = (el && el.checked) ? 1 : 0;
+    });
 
     try {
-        const response = await fetch("http://127.0.0.1:8000/predict", {
-            method: "POST",
+        const response = await fetch(apiUrl, {
+            method:  "POST",
+            mode:    "cors",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(data)
+            body:    JSON.stringify(data)
         });
+
+        if (!response.ok) {
+            throw new Error(`Server returned ${response.status}`);
+        }
 
         const result = await response.json();
 
@@ -117,42 +158,81 @@ symptoms.forEach(s => {
             throw new Error(result.error);
         }
 
-        // Show result
-        document.getElementById("predictedDisease").textContent =
-            result.disease;
-        document.getElementById("confidenceBadge").textContent =
-            result.confidence + "% confident";
+        // Main prediction
+        document.getElementById("predictedDisease").textContent = result.disease;
+        document.getElementById("confidenceBadge").textContent  = result.confidence + "% confident";
+
+        // History badge
+        if (result.history_used) {
+            document.getElementById('historyUsedBadge').style.display = 'inline-block';
+        }
+
+        // Past checkup info
+        if (result.past_checkups > 0) {
+            document.getElementById('futureRiskBlock').style.display = 'block';
+            document.getElementById('pastCheckupCount').textContent  = result.past_checkups + ' records';
+            document.getElementById('pastCheckupSummary').textContent =
+                'AI factored prior visits and recurring conditions into this prediction.';
+        }
 
         // Top 3 list
         const list = document.getElementById("top3List");
         list.innerHTML = "";
         result.top3.forEach((item, i) => {
-            const icon = i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉";
+            const icon  = i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉";
+            const color = i === 0 ? "bg-warning text-dark" : "bg-secondary";
             list.innerHTML += `
-                <li class="list-group-item d-flex justify-content-between">
+                <li class="list-group-item d-flex justify-content-between align-items-center">
                     <span>${icon} ${item.disease}</span>
-                    <span class="badge bg-secondary">${item.confidence}%</span>
+                    <span class="badge ${color}">${item.confidence}%</span>
                 </li>`;
         });
 
-        if (result.future_outcome) {
-            document.getElementById('futureOutcomeRisk').textContent = result.future_outcome.risk_level;
-            document.getElementById('futureOutcomeSummary').textContent = result.future_outcome.summary;
-            document.getElementById('futureOutcomeRecommendation').textContent = 'Recommendation: ' + result.future_outcome.recommendation;
+        // Followup block
+        if (result.followup) {
+            const urgent    = result.followup.urgent;
+            const badgeClass= urgent ? 'bg-danger' : 'bg-success';
+            const urgentLabel = urgent ? '🚨 URGENT' : '✅ Routine';
+
+            document.getElementById('futureOutcomeRisk').textContent  = urgentLabel;
+            document.getElementById('futureOutcomeRisk').className    = 'badge ' + badgeClass;
+
+            const actionsList = (result.followup.actions || []).join(', ') || 'Monitor condition';
+            const testsList   = (result.followup.tests   || []).join(', ') || 'As recommended';
+
+            document.getElementById('futureOutcomeSummary').innerHTML = `
+                <strong>Follow-up in ${result.followup.days} day(s)</strong><br>
+                <strong>Actions:</strong> ${actionsList}<br>
+                <strong>Recommended Tests:</strong> ${testsList}
+            `;
             document.getElementById('futureOutcomeBlock').style.display = 'block';
-        } else {
-            document.getElementById('futureOutcomeBlock').style.display = 'none';
         }
 
         resultDiv.style.display = "block";
 
-    } catch (error) {
-        console.error(error);
-        errorDiv.style.display = "block";
-
+    } catch (err) {
+        console.error("Prediction error:", err);
+        errorDiv.style.display  = "block";
+        errorDiv.innerHTML = `
+            ❌ <strong>Connection error:</strong> ${err.message}<br>
+            <small>Make sure the Flask AI server is running on port 8000.<br>
+            Run: <code>python app.py</code> in the <code>python_ai</code> folder.</small>`;
     } finally {
-        btn.disabled = false;
+        btn.disabled  = false;
         btn.innerHTML = '<i class="fa fa-brain me-1"></i> Predict Illness';
     }
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+    const apiUrl = `http://${window.location.hostname}:8000/`;
+
+    fetch(apiUrl)
+        .then(response => response.text())
+        .then(data => {
+            console.log("AI server ready:", data);
+            // Auto-trigger an initial prediction request on page load
+            predictDisease();
+        })
+        .catch(error => console.error("AI server fetch error on load:", error));
+});
 </script>

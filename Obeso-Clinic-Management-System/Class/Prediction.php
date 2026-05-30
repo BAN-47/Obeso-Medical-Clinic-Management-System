@@ -60,7 +60,8 @@ class Prediction
             'disease' => $data['disease'] ?? 'Unknown',
             'confidence' => $data['confidence'] ?? 0,
             'top3' => $data['top3'] ?? [],
-            'future_outcome' => $data['future_outcome'] ?? null
+            'followup' => $data['followup'] ?? null,
+            'features' => $data['features'] ?? null
         ];
     }
 }

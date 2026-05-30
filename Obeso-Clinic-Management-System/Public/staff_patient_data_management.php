@@ -485,11 +485,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
                     </div>
                     <div class="col-md-3">
                         <label class="form-label text-muted small">Birthday</label>
-                        <input type="date" name="birthday" class="form-control" required>
+                        <input type="date" name="birthday" id="birthday" class="form-control"  max="<?= date('Y-m-d') ?>" required>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label text-muted small">Age</label>
-                        <input type="number" name="age" class="form-control" placeholder="Age" required>
+                        <input type="number" name="age" id="age" class="form-control" placeholder="Age" required>
                     </div>
 
                     <div class="col-md-3">
@@ -525,7 +525,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
                     </div>
                     <div class="col-md-3">
                         <label class="form-label text-muted small">Religion</label>
-                        <input name="religion" class="form-control" placeholder="Religion">
+                        <select name="religion" class="form-select">
+                            <option value="">Select Religion</option>
+                            <option>Catholic</option><option>Born Again</option><option>The Seventh-day Adventist (SDA)</option><option>Jehovah's Witnesses</option><option>Muslim</option><option>Protestantism</option>
+                        </select>
                     </div>
 
                     <div class="col-12">
@@ -627,23 +630,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
             </div>
             <div class="row g-2">
                 <div class="col">
-                    <label class="form-label text-muted small">BP</label>
+                    <label class="form-label text-muted small">Blood Pressure</label>
                     <input id="old_blood_pressure" class="form-control" placeholder="BP" required>
                 </div>
                 <div class="col">
-                    <label class="form-label text-muted small">RR</label>
+                    <label class="form-label text-muted small">Respiratory Rate</label>
                     <input id="old_respiratory_rate" class="form-control" placeholder="RR" required >
                 </div>
                 <div class="col">
-                    <label class="form-label text-muted small">WT</label>
+                    <label class="form-label text-muted small">Weight</label>
                     <input id="old_weight" class="form-control" placeholder="WT" required>
                 </div>
                 <div class="col">
-                    <label class="form-label text-muted small">HR</label>
+                    <label class="form-label text-muted small">Heart Rate</label>
                     <input id="old_heart_rate" class="form-control" placeholder="HR" required>
                 </div>
                 <div class="col">
-                    <label class="form-label text-muted small">TEMP</label>
+                    <label class="form-label text-muted small">Temperature</label>
                     <input id="old_temperature" class="form-control" placeholder="TEMP" required>
                 </div>
             </div>
@@ -835,7 +838,9 @@ function closeQueueModal() {
 document.addEventListener('click', e => {
     if (e.target.id === 'confirmModal') closeConfirmModal();
 });
+
 </script>
+<script src="../Includes/patientAge.js"></script>
 
 </body>
 </html>

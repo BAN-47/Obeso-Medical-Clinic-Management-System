@@ -41,16 +41,19 @@ class Doctor {
 
     /* DELETE DOCTOR */
     public function deleteDoctor($doc_id) {
-        $sql = "DELETE FROM {$this->table_doctor} WHERE doc_id = :id";
+       $sql = "UPDATE {$this->table_doctor}
+                 SET is_deleted = 1
+                 WHERE doc_id = :id";
         $stmt = $this->conn->prepare($sql);
         return $stmt->execute([':id' => $doc_id]);
     }
 
     /* GET ALL DOCTORS */
     public function getAllDoctors() {
-        $sql = "SELECT *
-                FROM {$this->table_doctor}
-                ORDER BY doc_fullname ASC";
+   $sql = "SELECT *
+        FROM {$this->table_doctor}
+        WHERE is_deleted = 0
+        ORDER BY doc_fullname ASC";
 
         $stmt = $this->conn->prepare($sql);
         $stmt->execute();
@@ -59,10 +62,11 @@ class Doctor {
 
     /* SEARCH DOCTOR */
     public function searchDoctors($keyword) {
-        $sql = "SELECT *
-                FROM {$this->table_doctor}
-                WHERE doc_fullname LIKE :keyword
-                ORDER BY doc_fullname ASC";
+   $sql = "SELECT *
+        FROM {$this->table_doctor}
+        WHERE doc_fullname LIKE :keyword
+        AND is_deleted = 0
+        ORDER BY doc_fullname ASC";
 
         $stmt = $this->conn->prepare($sql);
         $stmt->execute([':keyword' => "%$keyword%"]);
@@ -71,9 +75,10 @@ class Doctor {
 
     /* FIND BY ID */
     public function getDoctorById($id) {
-        $sql = "SELECT *
-                FROM {$this->table_doctor}
-                WHERE doc_id = :id";
+      $sql = "SELECT *
+        FROM {$this->table_doctor}
+        WHERE doc_id = :id
+        AND is_deleted = 0";
 
         $stmt = $this->conn->prepare($sql);
         $stmt->execute([':id' => $id]);

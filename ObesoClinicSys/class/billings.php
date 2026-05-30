@@ -18,8 +18,10 @@ class Billing {
             JOIN patients p ON p.patient_id = b.patient_id
             JOIN doctors d ON d.doc_id = b.doc_id
             LEFT JOIN checkups c ON c.checkup_id = b.checkup_id
+            WHERE b.is_deleted = 0
             ORDER BY b.billed_at DESC
         ";
+
         return $this->conn->query($sql)->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -29,7 +31,9 @@ class Billing {
                 SET payment_status = :status,
                     payment_method = :method
                 WHERE bill_id = :id";
+
         $stmt = $this->conn->prepare($sql);
+
         return $stmt->execute([
             ":status" => $payment_status,
             ":method" => $payment_method,
@@ -37,10 +41,18 @@ class Billing {
         ]);
     }
 
-    /* ================= DELETE BILLING ================= */
+    /* ================= SOFT DELETE BILLING ================= */
     public function delete($bill_id) {
-        $stmt = $this->conn->prepare("DELETE FROM {$this->table} WHERE bill_id = :id");
-        return $stmt->execute([":id" => $bill_id]);
+
+        $sql = "UPDATE {$this->table}
+                SET is_deleted = 1
+                WHERE bill_id = :id";
+
+        $stmt = $this->conn->prepare($sql);
+
+        return $stmt->execute([
+            ':id' => $bill_id
+        ]);
     }
 }
 ?>

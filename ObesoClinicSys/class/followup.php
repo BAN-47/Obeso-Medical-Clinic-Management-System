@@ -19,6 +19,7 @@ public function viewAll() {
         JOIN patients p ON p.patient_id = f.patient_id
         JOIN doctors d ON d.doc_id = f.doc_id
         LEFT JOIN checkups c ON c.checkup_id = f.checkup_id
+        WHERE f.is_deleted = 0
         ORDER BY f.followup_date DESC
     ";
     return $this->conn->query($sql)->fetchAll(PDO::FETCH_ASSOC);
@@ -43,11 +44,16 @@ public function viewAll() {
     }
 
     /* ================= DELETE FOLLOWUP ================= */
-    public function delete($id) {
-        $stmt = $this->conn->prepare("
-            DELETE FROM {$this->table}
-            WHERE followup_id = :id
-        ");
-        return $stmt->execute(['id' => $id]);
-    }
+public function delete($id) {
+    $stmt = $this->conn->prepare("
+        UPDATE {$this->table}
+        SET is_deleted = 1
+        WHERE followup_id = :id
+    ");
+
+    return $stmt->execute([
+        'id' => $id
+    ]);
 }
+}
+?>

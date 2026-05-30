@@ -73,23 +73,33 @@ if ($patient && isset($patient['patient_id'])) {
     
     // Get top 3 future illnesses from AI
     try {
-        $ch = curl_init('http://127.0.0.1:8000/future-illnesses');
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['patient_id' => $patient['patient_id']]));
-        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+            $ch = curl_init('http://127.0.0.1:8000/predict');
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+            curl_setopt($ch, CURLOPT_POST, true);
+
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+                "chief_complaint" => $patient['chief_complaint'] ?? '',
+                "history_present_illness" => $patient['history_present_illness'] ?? '',
+                "blood_pressure" => $patient['blood_pressure'] ?? '',
+                "temperature" => $patient['temperature'] ?? 0,
+                "heart_rate" => $patient['heart_rate'] ?? 0,
+                "respiratory_rate" => $patient['respiratory_rate'] ?? 0
+            ]));
         
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
-        
-        if ($response && $httpCode === 200) {
-            $aiData = json_decode($response, true);
-            if (isset($aiData['future_illnesses'])) {
-                $topFutureIllnesses = $aiData['future_illnesses'];
-            }
-        }
+
+      if (isset($aiData['top3'])) {
+        $topFutureIllnesses = array_map(function($item) {
+            return [
+                "disease" => $item["disease"],
+                "likelihood" => $item["confidence"]
+            ];
+        }, $aiData['top3']);
+    }
+
     } catch (Exception $e) {
         // Silently fail - AI service might not be running
     }

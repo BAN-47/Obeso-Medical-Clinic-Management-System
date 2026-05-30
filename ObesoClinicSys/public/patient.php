@@ -3,8 +3,8 @@ session_start();
 
 /* 🔒 BLOCK ACCESS */
 if (!isset($_SESSION['user_id'])) {
-    header("Location: /login_page.php");
-    exit;
+  header("Location: /login_page.php");
+  exit;
 }
 
 /* 🔒 ANTI-BACK CACHE HEADERS */
@@ -31,53 +31,53 @@ $rows = $patient->viewAll();
 ====================== */
 if (isset($_POST['update_patient'])) {
 
-    $patient_id = $_POST['pat_id'];
+  $patient_id = $_POST['pat_id'];
 
-    // ✅ Combine name fields → fullname
-    $full_name = trim(
-        $_POST['pat_first_name'] . ' ' .
-        $_POST['pat_middle_init'] . ' ' .
-        $_POST['pat_last_name']
-    );
+  // ✅ Combine name fields → fullname
+  $full_name = trim(
+    $_POST['pat_first_name'] . ' ' .
+      $_POST['pat_middle_init'] . ' ' .
+      $_POST['pat_last_name']
+  );
 
-    $address = $_POST['pat_address'];
-    $birthday = $_POST['pat_dob'];
-    $sex = $_POST['pat_gender'];
-    $contact_number = $_POST['pat_contact_num'];
+  $address = $_POST['pat_address'];
+  $birthday = $_POST['pat_dob'];
+  $sex = $_POST['pat_gender'];
+  $contact_number = $_POST['pat_contact_num'];
 
-    // ✅ Auto-calculate age
-    $age = date_diff(
-        date_create($birthday),
-        date_create(date("Y-m-d"))
-    )->y;
+  // ✅ Auto-calculate age
+  $age = date_diff(
+    date_create($birthday),
+    date_create(date("Y-m-d"))
+  )->y;
 
-    // ✅ Keep existing values not in form
-    $existing = $patient->getById($patient_id);
+  // ✅ Keep existing values not in form
+  $existing = $patient->getById($patient_id);
 
-    $civil_status = $existing['civil_status'];
-    $religion = $existing['religion'];
-    $occupation = $existing['occupation'];
-    $contact_person = $existing['contact_person'];
-    $contact_person_age = $existing['contact_person_age'];
+  $civil_status = $existing['civil_status'];
+  $religion = $existing['religion'];
+  $occupation = $existing['occupation'];
+  $contact_person = $existing['contact_person'];
+  $contact_person_age = $existing['contact_person_age'];
 
-    if ($patient->update(
-        $patient_id,
-        $full_name,
-        $address,
-        $birthday,
-        $age,
-        $sex,
-        $civil_status,
-        $religion,
-        $occupation,
-        $contact_person,
-        $contact_person_age,
-        $contact_number
-    )) {
-        $rows = $patient->viewAll();
-    } else {
-        echo "<script>alert('❌ Error updating patient');</script>";
-    }
+  if ($patient->update(
+    $patient_id,
+    $full_name,
+    $address,
+    $birthday,
+    $age,
+    $sex,
+    $civil_status,
+    $religion,
+    $occupation,
+    $contact_person,
+    $contact_person_age,
+    $contact_number
+  )) {
+    $rows = $patient->viewAll();
+  } else {
+    echo "<script>alert('❌ Error updating patient');</script>";
+  }
 }
 ?>
 
@@ -131,71 +131,140 @@ if (isset($_POST['update_patient'])) {
                   <td><?= htmlspecialchars($row['contact_number']) ?></td>
                   <td>
                     <button class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal<?= $row['patient_id'] ?>">
-                        <i class="fas fa-edit"></i> Edit
+                      <i class="fas fa-edit"></i> Edit
                     </button>
-                </td>   
+                  </td>
                 </tr>
 
                 <!-- EDIT MODAL -->
-                <div class="modal fade" id="editModal<?= $row['pat_id'] ?>" tabindex="-1">
+                <div class="modal fade" id="editModal<?= $row['patient_id'] ?>" tabindex="-1">
                   <div class="modal-dialog modal-lg">
                     <div class="modal-content">
+
                       <form method="POST">
+
                         <div class="modal-header bg-warning text-white">
-                          <h5 class="modal-title"><i class="fas fa-edit me-2"></i>Edit Patient</h5>
+                          <h5 class="modal-title">Edit Patient</h5>
                           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
 
                         <div class="modal-body">
-                          <input type="hidden" name="pat_id" value="<?= $row['pat_id'] ?>">
+
+                          <input type="hidden" name="pat_id" value="<?= $row['patient_id'] ?>">
 
                           <div class="row g-3">
+
+                            <!-- FULL NAME -->
+                            <div class="col-md-12">
+                              <label>Full Name</label>
+                              <input type="text"
+                                class="form-control"
+                                name="full_name"
+                                value="<?= htmlspecialchars($row['full_name']) ?>">
+                            </div>
+
+                            <!-- BIRTHDAY -->
                             <div class="col-md-4">
-                              <label class="form-label">First Name</label>
-                              <input type="text" class="form-control" name="pat_first_name" value="<?= $row['pat_first_name'] ?>" required>
+                              <label>Birthday</label>
+                              <input type="date"
+                                class="form-control"
+                                name="birthday"
+                                value="<?= $row['birthday'] ?>">
                             </div>
 
+                            <!-- AGE -->
                             <div class="col-md-4">
-                              <label class="form-label">Middle Initial</label>
-                              <input type="text" class="form-control" name="pat_middle_init" value="<?= $row['pat_middle_init'] ?>">
+                              <label>Age</label>
+                              <input type="number"
+                                class="form-control"
+                                name="age"
+                                value="<?= $row['age'] ?>">
                             </div>
 
+                            <!-- GENDER -->
                             <div class="col-md-4">
-                              <label class="form-label">Last Name</label>
-                              <input type="text" class="form-control" name="pat_last_name" value="<?= $row['pat_last_name'] ?>" required>
-                            </div>
-
-                            <div class="col-md-6">
-                              <label class="form-label">Date of Birth</label>
-                              <input type="date" class="form-control" name="pat_dob" value="<?= $row['pat_dob'] ?>">
-                            </div>
-
-                            <div class="col-md-6">
-                              <label class="form-label">Gender</label>
-                              <select class="form-select" name="pat_gender">
+                              <label>Gender</label>
+                              <select class="form-select" name="sex">
                                 <option value="Male" <?= $row['sex'] == 'Male' ? 'selected' : '' ?>>Male</option>
                                 <option value="Female" <?= $row['sex'] == 'Female' ? 'selected' : '' ?>>Female</option>
                               </select>
                             </div>
 
-                            <div class="col-md-6">
-                              <label class="form-label">Contact Number</label>
-                              <input type="text" class="form-control" name="pat_contact_num" value="<?= $row['contact_number'] ?>">
+                            <!-- CIVIL STATUS -->
+                            <div class="col-md-4">
+                              <label>Civil Status</label>
+                              <select class="form-select" name="civil_status">
+                                <option value="Single" <?= $row['civil_status'] == 'Single' ? 'selected' : '' ?>>Single</option>
+                                <option value="Married" <?= $row['civil_status'] == 'Married' ? 'selected' : '' ?>>Married</option>
+                                <option value="Widowed" <?= $row['civil_status'] == 'Widowed' ? 'selected' : '' ?>>Widowed</option>
+                                <option value="Divorced" <?= $row['civil_status'] == 'Divorced' ? 'selected' : '' ?>>Divorced</option>
+                              </select>
                             </div>
 
-                            <div class="col-12">
-                              <label class="form-label">Address</label>
-                              <textarea class="form-control" name="pat_address"><?= $row['address'] ?></textarea>
+                            <!-- RELIGION -->
+                            <div class="col-md-4">
+                              <label>Religion</label>
+                              <input type="text"
+                                class="form-control"
+                                name="religion"
+                                value="<?= htmlspecialchars($row['religion']) ?>">
                             </div>
+
+                            <!-- OCCUPATION -->
+                            <div class="col-md-4">
+                              <label>Occupation</label>
+                              <input type="text"
+                                class="form-control"
+                                name="occupation"
+                                value="<?= htmlspecialchars($row['occupation']) ?>">
+                            </div>
+
+                            <!-- CONTACT PERSON -->
+                            <div class="col-md-6">
+                              <label>Contact Person</label>
+                              <input type="text"
+                                class="form-control"
+                                name="contact_person"
+                                value="<?= htmlspecialchars($row['contact_person']) ?>">
+                            </div>
+
+                            <!-- CONTACT PERSON AGE -->
+                            <div class="col-md-6">
+                              <label>Contact Person Age</label>
+                              <input type="number"
+                                class="form-control"
+                                name="contact_person_age"
+                                value="<?= $row['contact_person_age'] ?>">
+                            </div>
+
+                            <!-- CONTACT NUMBER -->
+                            <div class="col-md-6">
+                              <label>Contact Number</label>
+                              <input type="text"
+                                class="form-control"
+                                name="contact_number"
+                                value="<?= $row['contact_number'] ?>">
+                            </div>
+
+                            <!-- ADDRESS -->
+                            <div class="col-md-12">
+                              <label>Address</label>
+                              <textarea class="form-control"
+                                name="address"><?= $row['address'] ?></textarea>
+                            </div>
+
                           </div>
+
                         </div>
 
                         <div class="modal-footer">
-                          <button type="submit" name="update_patient" class="btn btn-success">Save Changes</button>
-                          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                          <button type="submit" name="update_patient" class="btn btn-success">
+                            Save Changes
+                          </button>
                         </div>
 
                       </form>
+
                     </div>
                   </div>
                 </div>
