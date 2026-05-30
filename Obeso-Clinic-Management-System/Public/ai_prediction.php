@@ -4,7 +4,7 @@
   <h5>🧠 AI Illness Prediction <span class="badge bg-primary ms-1" style="font-size:0.65rem;">Real-Time</span></h5>
   <p class="text-muted small mb-3">
     Fill in the patient vitals and symptoms, then click <strong>Predict</strong>.
-    The AI will use this patient's past medical records to improve accuracy.
+     The AI will analyze the data and provide a likely diagnosis along with confidence levels and recommended follow-ups.
   </p>
 
   <!-- Symptom Checkboxes -->
