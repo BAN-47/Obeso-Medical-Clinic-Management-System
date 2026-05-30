@@ -40,8 +40,8 @@ $conn = $database->connect();
 
     <!-- Logo / Title -->
     <div class="flex justify-center mb-8">
-      <div class="flex items-center space-x-2">
-        <span class="text-2xl font-semibold text-gray-800">Obeso Medical Clinic</span>
+      <div class="flex items-center justify-center w-35 h-20 overflow-hidden bg-white shadow-md" style="width: 220px; height: 120px;">
+        <img src="Obeso-Clinic-Management-System/Includes/Obeso_Med_Clinic_logo.png" alt="Obeso's Clinic Logo" class="w-full h-full object-cover rounded-3xl">
       </div>
     </div>
 
