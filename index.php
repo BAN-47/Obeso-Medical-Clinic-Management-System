@@ -13,7 +13,7 @@ $conn = $database->connect();
     
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Obeso's Clinic Management System</title>
-<link rel="icon" type="image/png" href="Obeso-Clinic-Management-System/Includes/favicon_obeso.png" />
+<link rel="icon" type="image/png" href="/Obeso-Clinic-Management-System/Includes/favicon_obeso.png" />
 <script src="https://cdn.tailwindcss.com"></script>
 
 <style>
