@@ -356,7 +356,7 @@ window.addEventListener('load', function() {
 <i class="fa fa-edit me-2"></i> Follow-Up Details
 </div>
 <div class="card-body">
-<form method="POST" action="">
+<form method="POST" action="" id="followUpForm">
 <input type="hidden" name="checkup_id" value="<?= $originalCheckup['checkup_id'] ?? '' ?>">
 
 <div class="row g-3">
@@ -622,7 +622,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-document.querySelector('form[method="POST"]').addEventListener('submit', function(e) {
+document.getElementById('followUpForm').addEventListener('submit', function(e) {
     const patientId = document.getElementById('selectedPatientId').value;
     if (!patientId || patientId == 0) {
         e.preventDefault();
