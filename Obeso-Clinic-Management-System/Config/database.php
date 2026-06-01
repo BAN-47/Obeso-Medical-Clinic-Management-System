@@ -1,26 +1,39 @@
 <?php
      class Database {
-          private $host = "mysql-udg6.railway.internal";
-          private $dbname = "railway";
+          private $host = "localhost";
+          private $dbname = "obeso_clinic_database";
           private $username = "root";
-          private $password = "qltVAiWVzXuKrskoUClPwMCbRZeqpxUt";
+          private $password = "";
           private $conn;
 
 
-
           public function connect() {
-               if ($this->conn == null) {
-                    try {
-                         $this->conn = new PDO("mysql:host={$this->host};dbname={$this->dbname}",
-                                        $this->username, $this->password);
-                         $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-                    }catch(PDOException $e) {
-                         echo "Connected failed : " . $e->getMessage();
-                    }
-               }
+    if ($this->conn == null) {
+        try {
 
-               return $this->conn;
-          }
+            $host = getenv('mysql-udg6.railway.internal');
+            $db   = getenv('railway');
+            $user = getenv('root');
+            $pass = getenv('qltVAiWVzXuKrskoUClPwMCbRZeqpxUt');
+
+            $this->conn = new PDO(
+                "mysql:host=$host;dbname=$db;charset=utf8mb4",
+                $user,
+                $pass
+            );
+
+            $this->conn->setAttribute(
+                PDO::ATTR_ERRMODE,
+                PDO::ERRMODE_EXCEPTION
+            );
+
+        } catch(PDOException $e) {
+            die("Connection failed: " . $e->getMessage());
+        }
+    }
+
+    return $this->conn;
+}
 
           // Auto-start Python API if not running
           public static function ensureAPIRunning() {
