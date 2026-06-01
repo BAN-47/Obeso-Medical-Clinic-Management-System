@@ -1,9 +1,9 @@
 <?php
      class Database {
-          private $host = "localhost";
-          private $dbname = "obeso_clinic_database";
+          private $host = "mysql-udg6.railway.internal";
+          private $dbname = "railway";
           private $username = "root";
-          private $password = "";
+          private $password = "qltVAiWVzXuKrskoUClPwMCbRZeqpxUt";
           private $conn;
 
 
