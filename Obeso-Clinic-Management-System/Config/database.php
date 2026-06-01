@@ -25,7 +25,7 @@
           // Auto-start Python API if not running
           public static function ensureAPIRunning() {
 
-               $apiUrl = "http://127.0.0.1:8000/";
+               $apiUrl = "https://obeso-medical-clinic-management-system-3.onrender.com/"; // Update with your Flask server URL if needed
 
                // ================= CHECK IF API RUNNING =================
 
