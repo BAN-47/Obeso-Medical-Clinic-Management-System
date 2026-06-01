@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 @api.route("/")
 def home():
-    return render_template("index.html")
+    return "Obeso Clinic AI API - Running"
 
 
 # ──────────────────────────────────────────────
