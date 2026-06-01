@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, render_template, request, jsonify
 import logging
 import pandas as pd
 
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 @api.route("/")
 def home():
-    return "index.php"
+    return render_template("index.html")
 
 
 # ──────────────────────────────────────────────
