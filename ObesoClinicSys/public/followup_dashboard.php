@@ -37,8 +37,7 @@ if (isset($_POST['update_followup'])) {
 /* ================= DELETE FOLLOWUP ================= */
 if (isset($_POST['delete_followup'])) {
     $followup->delete($_POST['followup_id']);
-    header("Location: admin_followups.php");
-    exit;
+    $rows = $followup->viewAll();
 }
 ?>
 

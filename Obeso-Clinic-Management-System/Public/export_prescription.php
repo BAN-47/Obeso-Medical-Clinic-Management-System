@@ -104,6 +104,7 @@ $html = <<<HTML
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<link rel="icon" type="image/png" href="../Includes/favicon_obeso.png">
 <title>Prescription - {$patient_name}</title>
 <style>
     * { margin: 0; padding: 0; }
