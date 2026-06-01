@@ -108,7 +108,7 @@ async function predictDisease() {
     const btn       = document.getElementById("predictBtn");
     const resultDiv = document.getElementById("predictionResult");
     const errorDiv  = document.getElementById("predictionError");
-    const apiUrl    = `http://${window.location.hostname}:8000/predict`;
+    const apiUrl    = `https://obeso-medical-clinic-management-system-3.onrender.com/`; // Update with your Flask server URL if needed
 
     // Reset
     resultDiv.style.display = "none";
