@@ -558,12 +558,6 @@ function confirmSave() {
                 <i class="fa fa-file-pdf"></i> Export Prescription PDF
             </a>
         </div>
-        <div class="mt-3">
-            <a href="doctor_followup_checkup.php?patient_id=<?= $patient['patient_id'] ?>&checkup_id=<?= $c['checkup_id'] ?>" class="btn btn-success btn-sm">
-                <i class="fa fa-plus"></i> Create a Follow Up Checkup
-            </a>
-        </div>
-    </div>
 </div>
 <?php endforeach; ?>
 
