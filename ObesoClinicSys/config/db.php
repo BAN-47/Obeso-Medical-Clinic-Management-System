@@ -5,33 +5,37 @@ class Database {
     private $dbname;
     private $username;
     private $password;
+    private $port;
     private $conn;
 
     public function __construct() {
-        // Use Railway ENV variables ONLY
-        $this->host = getenv('DB_HOST');
-        $this->dbname = getenv('DB_NAME');
-        $this->username = getenv('DB_USER');
-        $this->password = getenv('DB_PASS');
+        // Railway MySQL ENV variables
+        $this->host = getenv('MYSQLHOST');
+        $this->dbname = getenv('MYSQLDATABASE');
+        $this->username = getenv('MYSQLUSER');
+        $this->password = getenv('MYSQLPASSWORD');
+        $this->port = getenv('MYSQLPORT');
     }
 
     public function connect() {
         if ($this->conn === null) {
 
             try {
-                // Ensure all values exist
-                if (!$this->host || !$this->dbname || !$this->username) {
-                    throw new Exception("Missing DB environment variables");
+                // Validate environment variables
+                if (!$this->host || !$this->dbname || !$this->username || !$this->port) {
+                    throw new Exception("Missing Railway MySQL environment variables");
                 }
 
                 // Create PDO connection
+                $dsn = "mysql:host={$this->host};port={$this->port};dbname={$this->dbname};charset=utf8";
+
                 $this->conn = new PDO(
-                    "mysql:host={$this->host};dbname={$this->dbname};charset=utf8",
+                    $dsn,
                     $this->username,
                     $this->password
                 );
 
-                // Throw real errors
+                // Enable error mode
                 $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
             } catch (PDOException $e) {
