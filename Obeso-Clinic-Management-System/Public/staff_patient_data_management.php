@@ -527,7 +527,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
                         <label class="form-label text-muted small">Religion</label>
                         <select name="religion" class="form-select">
                             <option value="">Select Religion</option>
-                            <option>Catholic</option><option>Born Again</option><option>The Seventh-day Adventist (SDA)</option><option>Jehovah's Witnesses</option><option>Muslim</option><option>Protestantism</option>
+                            <option>Catholic</option><option>Born Again</option><option>The Seventh-day Adventist (SDA)</option><option>Jehovah's Witnesses</option><option>Muslim</option><option>Protestantism</option><option>Atheist</option>
                         </select>
                     </div>
 

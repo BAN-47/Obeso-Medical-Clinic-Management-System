@@ -72,14 +72,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $stmt = $db->prepare("
         INSERT INTO billing
-        (patient_id, doc_id, checkup_id, checkup_date, consultation_fee, medication_fee, total_amount, payment_status, payment_method)
+        (patient_id, doc_id, checkup_id, billed_at, consultation_fee, medication_fee, total_amount, payment_status, payment_method)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ");
     $stmt->execute([
         $patient_id,
         $_POST['doc_id'],
         $checkup_id ?: null,
-        !empty($_POST['checkup_date']) ? $_POST['checkup_date'] : null,
+        !empty($_POST['billed_at']) ? $_POST['billed_at'] : null,
         $_POST['consultation_fee'],
         $_POST['medication_fee'],
         $total,
