@@ -1,7 +1,7 @@
 <?php
 session_start();
 
-require_once __DIR__ . "/Obeso-Clinic-Management-System/Config/database.php";
+require_once __DIR__ . "./Obeso-Clinic-Management-System/Config/database.php";
 
 $database = new Database();
 $conn = $database->connect();
@@ -51,7 +51,7 @@ $conn = $database->connect();
     </h2>
 
     <!-- Login Form -->
-    <form method="POST" action="./Obeso-Clinic-Management-System/Public/login_register.php" autocomplete="off" class="space-y-6">
+    <form method="POST" action="/Obeso-Clinic-Management-System/Public/login_register.php" autocomplete="off" class="space-y-6">
 
       <!-- Username -->
       <input

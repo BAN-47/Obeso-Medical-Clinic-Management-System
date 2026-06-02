@@ -17,7 +17,7 @@ if (isset($_POST['register'])) {
     $stmt->execute([$username]);
     if ($stmt->rowCount() > 0) {
         $_SESSION['register_error'] = 'Username is already taken.';
-        header("Location: login.php");
+        header("Location: /index.php");
         exit();
     }
 
@@ -52,12 +52,12 @@ if (isset($_POST['register'])) {
         $stmt->execute([$username, $password, $roleId]);
     } else {
         $_SESSION['register_error'] = 'Account not found in staff or doctor records.';
-        header("Location: login.php");
+        header("Location: /index.php");
         exit();
     }
 
     $_SESSION['register_success'] = ucfirst($role) . ' account successfully registered!';
-    header("Location: login.php");
+    header("Location: /index.php");
     exit();
 }
 
