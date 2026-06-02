@@ -23,6 +23,17 @@ $db = (new Database())->connect();
 $doctorStmt = $db->query("SELECT doc_id, doc_fullname FROM doctors ORDER BY doc_fullname");
 $doctors = $doctorStmt->fetchAll(PDO::FETCH_ASSOC);
 
+$currentDoctorId = $_SESSION['doc_id'] ?? null;
+$currentDoctorName = null;
+if ($currentDoctorId !== null) {
+    foreach ($doctors as $doc) {
+        if ($doc['doc_id'] == $currentDoctorId) {
+            $currentDoctorName = $doc['doc_fullname'];
+            break;
+        }
+    }
+}
+
 $checkupObj = new Checkup($db);
 $medObj     = new Medication($db);
 $presObj    = new PrescribedMedication($db);
@@ -377,16 +388,22 @@ function confirmSave() {
             <div class="row g-3 mt-3">
                 <div class="col-md-10 mt-2">
                     <label class="form-label text-muted small">Doctor</label>
-                    <select class="form-select" id="doctorDropdown" onchange="fillDoctorFields(this)" required>
-                        <option value="">— Select Doctor —</option>
-                        <?php foreach ($doctors as $doc): ?>
-                            <option value="<?= $doc['doc_id'] ?>" data-fullname="<?= htmlspecialchars($doc['doc_fullname']) ?>">
-                                <?= htmlspecialchars($doc['doc_fullname']) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                    <input type="hidden" name="doc_id" id="doc_id_input">
-                    <input type="hidden" name="doc_fullname" id="doc_fullname_input">
+                    <?php if ($currentDoctorId && $currentDoctorName): ?>
+                        <input type="text" class="form-control" value="<?= htmlspecialchars($currentDoctorName) ?>" readonly>
+                        <input type="hidden" name="doc_id" value="<?= htmlspecialchars($currentDoctorId) ?>">
+                        <input type="hidden" name="doc_fullname" value="<?= htmlspecialchars($currentDoctorName) ?>">
+                    <?php else: ?>
+                        <select class="form-select" id="doctorDropdown" onchange="fillDoctorFields(this)" required>
+                            <option value="">— Select Doctor —</option>
+                            <?php foreach ($doctors as $doc): ?>
+                                <option value="<?= $doc['doc_id'] ?>" data-fullname="<?= htmlspecialchars($doc['doc_fullname']) ?>">
+                                    <?= htmlspecialchars($doc['doc_fullname']) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <input type="hidden" name="doc_id" id="doc_id_input">
+                        <input type="hidden" name="doc_fullname" id="doc_fullname_input">
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
