@@ -42,6 +42,7 @@ if (isset($_GET['fetch'])) {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<link rel="icon" type="image/png" href="../Includes/favicon_obeso.png">
 <title>Queue Display — Obeso's Clinic</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="tv_display.css">

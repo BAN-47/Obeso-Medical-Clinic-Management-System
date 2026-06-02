@@ -1,5 +1,8 @@
 <?php
 session_start();
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Pragma: no-cache");
+header("Expires: 0");
 
 /* ================= ACCESS CONTROL ================= */
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'staff') {
@@ -137,6 +140,7 @@ $bills = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<link rel="icon" type="image/png" href="../Includes/favicon_obeso.png">
 <title>Obeso Clinic | Billing</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js"></script>

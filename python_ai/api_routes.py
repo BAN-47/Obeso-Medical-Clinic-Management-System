@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, render_template, request, jsonify
 import logging
 import pandas as pd
 
@@ -216,7 +216,7 @@ def _csv_based_trend():
     """
     try:
         import os, csv as csv_mod
-        from model_util import CSV_PATH
+        from python_ai.model_util import CSV_PATH
 
         disease_scores = {}
         with open(CSV_PATH, newline='') as f:

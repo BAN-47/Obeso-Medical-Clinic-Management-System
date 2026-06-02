@@ -1,5 +1,8 @@
 <?php
 session_start();
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Pragma: no-cache");
+header("Expires: 0");
 
 /* ================= ACCESS CONTROL ================= */
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'staff') {
@@ -189,6 +192,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<link rel="icon" type="image/png" href="../Includes/favicon_obeso.png">
 <title>Obeso's Clinic Management System</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 

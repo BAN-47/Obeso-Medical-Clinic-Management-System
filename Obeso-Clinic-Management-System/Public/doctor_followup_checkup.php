@@ -1,5 +1,8 @@
 <?php
 session_start();
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Pragma: no-cache");
+header("Expires: 0");
 
 /* ================= ACCESS CONTROL ================= */
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'doctor') {
@@ -149,6 +152,7 @@ if ($searchDate) {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<link rel="icon" type="image/png" href="../Includes/favicon_obeso.png">
 <title>Obeso's Clinic Management System</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js"></script>
@@ -356,7 +360,7 @@ window.addEventListener('load', function() {
 <i class="fa fa-edit me-2"></i> Follow-Up Details
 </div>
 <div class="card-body">
-<form method="POST" action="">
+<form method="POST" action="" id="followUpForm">
 <input type="hidden" name="checkup_id" value="<?= $originalCheckup['checkup_id'] ?? '' ?>">
 
 <div class="row g-3">
@@ -622,7 +626,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-document.querySelector('form[method="POST"]').addEventListener('submit', function(e) {
+document.getElementById('followUpForm').addEventListener('submit', function(e) {
     const patientId = document.getElementById('selectedPatientId').value;
     if (!patientId || patientId == 0) {
         e.preventDefault();
