@@ -17,7 +17,7 @@ if (isset($_POST['register'])) {
     $stmt->execute([$username]);
     if ($stmt->rowCount() > 0) {
         $_SESSION['register_error'] = 'Username is already taken.';
-        header("Location: /index.php");
+        header("Location: login.php");
         exit();
     }
 
@@ -52,12 +52,12 @@ if (isset($_POST['register'])) {
         $stmt->execute([$username, $password, $roleId]);
     } else {
         $_SESSION['register_error'] = 'Account not found in staff or doctor records.';
-        header("Location: /index.php");
+        header("Location: login.php");
         exit();
     }
 
     $_SESSION['register_success'] = ucfirst($role) . ' account successfully registered!';
-    header("Location: /index.php");
+    header("Location: login.php");
     exit();
 }
 
@@ -106,16 +106,16 @@ if (isset($_POST['login'])) {
         // Redirect by role
         switch ($role) {
             case 'superadmin':
-                header("Location: C:/Users/Tristan Obeso/Obeso Medical Clinic/Obeso-Medical-Clinic-Management-System/ObesoClinicSys/public/dashboard.php");
+                header("Location: /ObesoClinicSys/public/dashboard.php");
                 break;
             case 'doctor':
-                header("Location: /Obeso-Clinic-Management-System/Public/doctor_dashboard.php");
+                header("Location: ./doctor_dashboard.php");
                 break;
             case 'staff':
-                header("Location: /Obeso-Clinic-Management-System/Public/staff_dashboard.php");
+                header("Location: ./staff_dashboard.php");
                 break;
             default:
-                header("Location: /Obeso-Clinic-Management-System/Public/access_denied.php");
+                header("Location: ./access_denied.php");
         }
         exit();
     } else {
@@ -124,6 +124,5 @@ if (isset($_POST['login'])) {
         exit();
     }
 }
-
 ?>
 
