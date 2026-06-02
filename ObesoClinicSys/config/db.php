@@ -20,8 +20,8 @@ class Database {
         if ($this->conn === null) {
 
             try {
-                if (!$this->host || !$this->port || !$this->dbname) {
-                    throw new Exception("Missing DB environment variables");
+                if (!$this->host || !$this->port || !$this->dbname || !$this->username) {
+                    die("Missing DB environment variables");
                 }
 
                 $dsn = "mysql:host={$this->host};port={$this->port};dbname={$this->dbname};charset=utf8";
