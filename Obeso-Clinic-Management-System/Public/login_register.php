@@ -5,15 +5,6 @@ require_once "../Config/database.php";
 $database = new Database();
 $conn = $database->connect();
 
-$baseRoot = dirname($_SERVER['SCRIPT_NAME'], 3);
-if ($baseRoot === '/' || $baseRoot === '\\') {
-    $baseRoot = '';
-}
-$publicBase = dirname($_SERVER['SCRIPT_NAME']);
-if ($publicBase === '/' || $publicBase === '\\') {
-    $publicBase = '';
-}
-
 /* ==============================================================  
    🧩 REGISTER (Plain Password)
    ============================================================== */
@@ -26,7 +17,7 @@ if (isset($_POST['register'])) {
     $stmt->execute([$username]);
     if ($stmt->rowCount() > 0) {
         $_SESSION['register_error'] = 'Username is already taken.';
-        header("Location: {$baseRoot}/index.php");
+        header("Location: /index.php");
         exit();
     }
 
@@ -61,12 +52,12 @@ if (isset($_POST['register'])) {
         $stmt->execute([$username, $password, $roleId]);
     } else {
         $_SESSION['register_error'] = 'Account not found in staff or doctor records.';
-        header("Location: {$baseRoot}/index.php");
+        header("Location: /index.php");
         exit();
     }
 
     $_SESSION['register_success'] = ucfirst($role) . ' account successfully registered!';
-    header("Location: {$baseRoot}/index.php");
+    header("Location: /index.php");
     exit();
 }
 
@@ -86,7 +77,7 @@ if (isset($_POST['login'])) {
 
     if ((int)$user['user_is_active'] !== 1) {
         $_SESSION['login_error'] = "Your account has been disabled. Please contact the administrator.";
-        header("Location: {$baseRoot}/index.php");
+        header("Location: /index.php");
         exit;
     }
         // Detect role
@@ -115,21 +106,21 @@ if (isset($_POST['login'])) {
         // Redirect by role
         switch ($role) {
             case 'superadmin':
-                header("Location: {$baseRoot}/ObesoClinicSys/public/dashboard.php");
+                header("Location: C:/Users/Tristan Obeso/Obeso Medical Clinic/Obeso-Medical-Clinic-Management-System/ObesoClinicSys/public/dashboard.php");
                 break;
             case 'doctor':
-                header("Location: {$publicBase}/doctor_dashboard.php");
+                header("Location: /Obeso-Clinic-Management-System/Public/doctor_dashboard.php");
                 break;
             case 'staff':
-                header("Location: {$publicBase}/staff_dashboard.php");
+                header("Location: /Obeso-Clinic-Management-System/Public/staff_dashboard.php");
                 break;
             default:
-                header("Location: {$publicBase}/access_denied.php");
+                header("Location: /Obeso-Clinic-Management-System/Public/access_denied.php");
         }
         exit();
     } else {
         $_SESSION['login_error'] = "Incorrect username or password.";
-        header("Location: {$baseRoot}/index.php");
+        header("Location: /index.php");
         exit();
     }
 }

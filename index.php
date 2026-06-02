@@ -5,11 +5,6 @@ require_once __DIR__ . "/Obeso-Clinic-Management-System/Config/database.php";
 
 $database = new Database();
 $conn = $database->connect();
-
-$baseRoot = dirname($_SERVER['SCRIPT_NAME']);
-if ($baseRoot === '/' || $baseRoot === '\\') {
-    $baseRoot = '';
-}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -46,7 +41,7 @@ if ($baseRoot === '/' || $baseRoot === '\\') {
     <!-- Logo / Title -->
     <div class="flex justify-center mb-8">
       <div class="flex items-center justify-center w-35 h-20 overflow-hidden bg-white shadow-md" style="width: 220px; height: 120px;">
-        <img src="/Obeso-Clinic-Management-System/Includes/Obeso_Med_Clinic_logo.png" alt="Obeso's Clinic Logo" class="w-full h-full object-cover rounded-3xl">
+        <img src="/Obeso-Clinic-Management-System/Includes/Obeso_Med_Clinic_logo.png alt="Obeso's Clinic Logo" class="w-full h-full object-cover rounded-3xl">
       </div>
     </div>
 
@@ -56,7 +51,7 @@ if ($baseRoot === '/' || $baseRoot === '\\') {
     </h2>
 
     <!-- Login Form -->
-    <form method="POST" action="<?= $baseRoot ?>/Obeso-Clinic-Management-System/Public/login_register.php" autocomplete="off" class="space-y-6">
+    <form method="POST" action="/Obeso-Clinic-Management-System/Public/login_register.php" autocomplete="off" class="space-y-6">
 
       <!-- Username -->
       <input
