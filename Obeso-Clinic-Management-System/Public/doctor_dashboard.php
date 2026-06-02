@@ -31,6 +31,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     session_write_close(); // IMPORTANT: prevents session lock issues
 
     try {
+        $action = $_POST['action'];
+        
         if ($action === 'call_next') {
             $db->prepare("UPDATE queue SET status = 'waiting' WHERE status = 'in-progress' AND DATE(created_at) = CURDATE()")
                ->execute();
