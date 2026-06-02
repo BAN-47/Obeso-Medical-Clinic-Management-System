@@ -1,5 +1,6 @@
 <?php
- class Database {
+
+class Database {
     private $host;
     private $dbname;
     private $username;
@@ -41,6 +42,5 @@
         }
 
         return $this->conn;
-          }
-     }
- ?>
+    }
+}
