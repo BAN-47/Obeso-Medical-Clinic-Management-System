@@ -1,5 +1,7 @@
 <?php
 session_start();
+// remember the default session name so we can remove the default cookie after role session is created
+$defaultSessionName = session_name();
 require_once "../Config/database.php";
 
 $database = new Database();
@@ -91,17 +93,27 @@ if (isset($_POST['login'])) {
             $role = 'unknown';
         }
 
-        // Set session variables
+        // Close the current (public) session and create a role-specific session
+        session_write_close();
+        $roleSessionName = ($role === 'doctor') ? 'obeso_doctor' : (($role === 'staff') ? 'obeso_staff' : session_name());
+        session_name($roleSessionName);
+        session_start();
+
+        // Set session variables in the role-specific session
         $_SESSION['user_id'] = $user['user_id'];
         $_SESSION['user_name'] = $user['user_name'];
         $_SESSION['role'] = $role;
-
         if ($role === 'doctor') $_SESSION['doc_id'] = $user['doc_id'];
         if ($role === 'staff') $_SESSION['staff_id'] = $user['staff_id'];
 
         // Update last login time
         $update = $conn->prepare("UPDATE users SET user_last_login = NOW() WHERE user_id = ?");
         $update->execute([$user['user_id']]);
+
+        // Remove the default session cookie from the browser to avoid a shared default session
+        if (!empty($defaultSessionName) && $defaultSessionName !== $roleSessionName) {
+            setcookie($defaultSessionName, '', time() - 42000, '/');
+        }
 
         // Redirect by role
         switch ($role) {

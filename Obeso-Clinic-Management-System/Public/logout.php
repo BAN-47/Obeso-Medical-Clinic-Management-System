@@ -7,18 +7,15 @@ $_SESSION = [];
 /* Destroy session */
 session_destroy();
 
-/* Delete session cookie */
-if (ini_get("session.use_cookies")) {
-    $params = session_get_cookie_params();
-    setcookie(
-        session_name(),
-        '',
-        time() - 42000,
-        $params["path"],
-        $params["domain"],
-        $params["secure"],
-        $params["httponly"]
-    );
+/* Delete session cookie(s): default + role-specific */
+$params = session_get_cookie_params();
+$names = [session_name(), 'obeso_doctor', 'obeso_staff'];
+foreach ($names as $sname) {
+    // Remove cookie if present
+    if (isset($_COOKIE[$sname])) {
+        setcookie($sname, '', time() - 42000, $params['path'] ?? '/', $params['domain'] ?? '', $params['secure'] ?? false, $params['httponly'] ?? false);
+        unset($_COOKIE[$sname]);
+    }
 }
 
 /* Prevent caching */

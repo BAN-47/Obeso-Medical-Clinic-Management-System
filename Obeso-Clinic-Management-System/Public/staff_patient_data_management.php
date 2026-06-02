@@ -1,4 +1,5 @@
 <?php
+session_name('obeso_staff');
 session_start();
 
 ini_set('display_errors', 0);
@@ -812,7 +813,7 @@ function confirmQueue() {
         fd.append('heart_rate',        document.getElementById('old_heart_rate').value);
         fd.append('temperature',       document.getElementById('old_temperature').value);
 
-        fetch(window.location.pathname, { method: 'POST', body: fd })
+        fetch(window.location.pathname, { method: 'POST', credentials: 'same-origin', body: fd })
             .then(r => r.json())
             .then(data => {
                 if (data.success) {

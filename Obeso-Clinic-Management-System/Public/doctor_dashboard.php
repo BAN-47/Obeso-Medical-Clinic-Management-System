@@ -1,4 +1,5 @@
 <?php
+session_name('obeso_doctor');
 session_start();
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Pragma: no-cache");
@@ -578,7 +579,7 @@ function postAction(action, extra = {}) {
     const fd = new FormData();
     fd.append('action', action);
     for (const [k, v] of Object.entries(extra)) fd.append(k, v);
-    return fetch(SELF, { method: 'POST', body: fd }).then(async r => {
+    return fetch(SELF, { method: 'POST', credentials: 'same-origin', body: fd }).then(async r => {
     const text = await r.text();
     try {
         return JSON.parse(text);
@@ -731,7 +732,7 @@ function renderTable(rows) {
 }
 
 function fetchQueue() {
-    fetch(SELF + '?fetch_queue=1&t=' + Date.now()).then(r => r.json()).then(data => {
+    fetch(SELF + '?fetch_queue=1&t=' + Date.now(), { credentials: 'same-origin' }).then(r => r.json()).then(data => {
         const { rows, counts, avg_wait } = data;
         document.getElementById('stat-waiting').textContent = counts.waiting;
         document.getElementById('stat-inprog').textContent  = counts.inprog;
