@@ -66,12 +66,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             SELECT checkup_id 
             FROM checkups 
             WHERE patient_id = ? 
-              AND doc_id = ? 
-              AND checkup_date = ?
+            AND DATE(checkup_date) = DATE(?)
             LIMIT 1
         ");
-        $stmt->execute([$patient_id, $_POST['doc_id'], $_POST['checkup_date']]);
-        $checkup_id = $stmt->fetchColumn();
+        $stmt->execute([$patient_id, $_POST['checkup_date']]);
+        $checkup_id = $stmt->fetchColumn() ?: null;
     }
 
     $stmt = $db->prepare("
@@ -83,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $patient_id,
         $_POST['doc_id'],
         $checkup_id ?: null,
-        !empty($_POST['billed_at']) ? $_POST['billed_at'] : null,
+        !empty($_POST['checkup_date']) ? $_POST['checkup_date'] . ' ' . date('H:i:s') : date('Y-m-d H:i:s'),
         $_POST['consultation_fee'],
         $_POST['medication_fee'],
         $total,
@@ -355,7 +354,6 @@ $brandNames = $db->query("
           <span id="rcptGrandTotal">₱0.00</span>
         </div>
       </div>
-
     </div>
   </div>
 </div>
