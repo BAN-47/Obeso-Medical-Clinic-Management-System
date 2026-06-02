@@ -40,7 +40,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $patient_id = $stmt->fetchColumn();
 
     if (!$patient_id) {
-        die("Patient not found.");
+        header("Location: staff_billing.php?error=patient_not_found");
+        exit();
     }
 
     /* DUPLICATION CHECK */
@@ -56,7 +57,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute([
         $patient_id, $_POST['doc_id'], $_POST['consultation_fee'], $_POST['medication_fee'], $total]);
     if ($stmt->fetchColumn() > 0) {
-        die("Duplicate billing record detected for today.");
+        header("Location: staff_billing.php?error=duplicate");
+        exit();
     }
 
     /* FIND CHECKUP ID BY DATE */
@@ -221,8 +223,21 @@ $patientCheckups = $db->query("
 <?php if (isset($_GET['success'])): ?>
 <div class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2" 
      style="margin-bottom: 10px; padding: 10px 16px; font-size: 14px;" role="alert">
-    <i class="fa fa-circle-check"></i>
+    <i class="fa fa-circle-check me-1"></i>
     Billing record successfully added.
+    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+</div>
+<?php endif; ?>
+
+<?php if (isset($_GET['error'])): ?>
+<div class="alert alert-danger alert-dismissible fade show d-flex align-items-center gap-2"
+     style="margin-bottom: 10px; padding: 10px 16px; font-size: 14px;" role="alert">
+    <i class="fa fa-circle-exclamation me-1"></i>
+    <?php if ($_GET['error'] === 'patient_not_found'): ?>
+        Patient not found. Please make sure the name matches exactly.
+    <?php elseif ($_GET['error'] === 'duplicate'): ?>
+        Duplicate billing record detected for today.
+    <?php endif; ?>
     <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
 </div>
 <?php endif; ?>
