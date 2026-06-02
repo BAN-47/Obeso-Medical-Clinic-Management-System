@@ -101,10 +101,6 @@ $latestPatients = $db->query("SELECT full_name FROM patients ORDER BY patient_id
 /* DOCTORS */
 $doctors = $db->query("SELECT doc_id, doc_fullname FROM doctors")->fetchAll(PDO::FETCH_ASSOC);
 
-/* MEDICATION SUGGESTIONS */
-$genericNames = $db->query("SELECT DISTINCT generic_name FROM medications WHERE generic_name IS NOT NULL ORDER BY generic_name")->fetchAll(PDO::FETCH_COLUMN);
-$brandNames = $db->query("SELECT DISTINCT brand_name FROM medications WHERE brand_name IS NOT NULL ORDER BY brand_name")->fetchAll(PDO::FETCH_COLUMN);
-
 /* TOTAL BILLS COUNT FOR PAGINATION */
 $countSql = "SELECT COUNT(*) FROM billing b LEFT JOIN checkups c ON b.checkup_id = c.checkup_id";
 if ($search_date) {
@@ -172,30 +168,6 @@ $brandNames = $db->query("
 .sb-sidenav .nav-link.active { background-color: #062e6bff !important; color: #fff !important; font-weight: 600; }
 .queue-item { cursor: pointer; transition: background 0.12s; }
 .queue-item:hover { background: #f0f4ff; }
-.autocomplete-dropdown {
-  position: absolute;
-  z-index: 1000;
-  width: 100%;
-  max-height: 220px;
-  overflow-y: auto;
-  background: #fff;
-  border: 1px solid rgba(0,0,0,0.12);
-  border-radius: 0 0 6px 6px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-}
-.autocomplete-option {
-  padding: 8px 10px;
-  cursor: pointer;
-  font-size: 13px;
-  color: #1d1d1d;
-}
-.autocomplete-option:hover,
-.autocomplete-option.active {
-  background: #e9f1ff;
-}
-.autocomplete-cell {
-  position: relative;
-}
 </style>
 </head>
 <body class="sb-nav-fixed">
@@ -325,17 +297,6 @@ $brandNames = $db->query("
     <option value="GCash">GCash</option>
 </select>
 </div>
-
-<datalist id="genericList">
-<?php foreach ($genericNames as $generic): ?>
-<option value="<?= htmlspecialchars($generic) ?>">
-<?php endforeach; ?>
-</datalist>
-<datalist id="brandList">
-<?php foreach ($brandNames as $brand): ?>
-<option value="<?= htmlspecialchars($brand) ?>">
-<?php endforeach; ?>
-</datalist>
 
 <!-- ================= MEDICATION RECEIPT ================= -->
 <div class="col-md-12">
@@ -492,8 +453,6 @@ document.getElementById('queueModal').addEventListener('click', function(e) {
     if (e.target === this) this.style.display = 'none';
 });
 
-const genericOptions = <?= json_encode(array_values($genericNames)) ?>;
-const brandOptions = <?= json_encode(array_values($brandNames)) ?>;
 let medRowId = 0;
 
 function addMedRow() {
@@ -502,10 +461,6 @@ function addMedRow() {
   const tr = document.createElement('tr');
   tr.id = 'med-row-' + id;
   tr.innerHTML = `
-<<<<<<< HEAD
-    <td class="autocomplete-cell"><input type="text" class="form-control form-control-sm med-generic" name="med_generic[]" placeholder="e.g. Amoxicillin"></td>
-    <td class="autocomplete-cell"><input type="text" class="form-control form-control-sm med-brand" name="med_brand[]" placeholder="e.g. Amoxil"></td>
-=======
     <td>
         <select class="form-select form-select-sm generic-select" name="med_generic[]">
             <option value=""></option>
@@ -527,7 +482,6 @@ function addMedRow() {
             <?php endforeach; ?>
         </select>
     </td>
->>>>>>> 14eb079eb5b09becf4a566b134e3aef3decd4067
     <td><input type="number" class="form-control form-control-sm" name="med_qty[]" value="1" min="1"
               oninput="calcMedRow(${id}); syncMedFee();"></td>
     <td><input type="number" class="form-control form-control-sm" name="med_price[]" placeholder="0.00" step="0.01" min="0"
@@ -537,90 +491,7 @@ function addMedRow() {
                 onclick="removeMedRow(${id})"><i class="fa fa-times"></i></button></td>
   `;
   document.getElementById('medBody').appendChild(tr);
-<<<<<<< HEAD
-  attachAutocomplete(tr.querySelector('.med-generic'), genericOptions);
-  attachAutocomplete(tr.querySelector('.med-brand'), brandOptions);
-}
 
-function attachAutocomplete(input, options) {
-  const container = document.createElement('div');
-  container.className = 'autocomplete-dropdown';
-  container.style.display = 'none';
-  input.parentElement.appendChild(container);
-
-  input.addEventListener('input', () => updateSuggestions(input, options, container));
-  input.addEventListener('focus', () => updateSuggestions(input, options, container));
-  input.addEventListener('blur', () => setTimeout(() => container.style.display = 'none', 150));
-  input.addEventListener('keydown', event => navigateSuggestions(event, input, container));
-}
-
-function updateSuggestions(input, options, container) {
-  const value = input.value.trim().toLowerCase();
-  let filtered;
-
-  if (value === '') {
-    filtered = options.slice(0, 5);
-  } else {
-    filtered = options.filter(item => item.toLowerCase().includes(value)).slice(0, 5);
-  }
-
-  container.innerHTML = '';
-
-  if (filtered.length === 0) {
-    container.style.display = 'none';
-    return;
-  }
-
-  filtered.forEach(text => {
-    const div = document.createElement('div');
-    div.className = 'autocomplete-option';
-    div.textContent = text;
-    div.addEventListener('mousedown', e => {
-      e.preventDefault();
-      input.value = text;
-      container.style.display = 'none';
-    });
-    container.appendChild(div);
-  });
-
-  container.style.display = 'block';
-}
-
-function navigateSuggestions(event, input, container) {
-  const active = container.querySelector('.autocomplete-option.active');
-  let next;
-
-  if (event.key === 'ArrowDown') {
-    event.preventDefault();
-    next = active ? active.nextElementSibling : container.firstElementChild;
-  } else if (event.key === 'ArrowUp') {
-    event.preventDefault();
-    next = active ? active.previousElementSibling : container.lastElementChild;
-  } else if (event.key === 'Enter' && active) {
-    event.preventDefault();
-    input.value = active.textContent;
-    container.style.display = 'none';
-    return;
-  }
-
-  if (!next) return;
-  if (active) active.classList.remove('active');
-  next.classList.add('active');
-  next.scrollIntoView({ block: 'nearest' });
-=======
-
-  $(tr).find('.generic-select').select2({
-        placeholder: 'Search Generic Name',
-        width: '100%',
-        minimumInputLength: 1
-    });
-
-    $(tr).find('.brand-select').select2({
-        placeholder: 'Search Brand Name',
-        width: '100%',
-        minimumInputLength: 1
-    });
->>>>>>> 14eb079eb5b09becf4a566b134e3aef3decd4067
 }
 
 function calcMedRow(id) {
