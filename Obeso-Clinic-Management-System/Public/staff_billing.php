@@ -169,6 +169,36 @@ $brandNames = $db->query("
 .sb-sidenav .nav-link.active { background-color: #062e6bff !important; color: #fff !important; font-weight: 600; }
 .queue-item { cursor: pointer; transition: background 0.12s; }
 .queue-item:hover { background: #f0f4ff; }
+.med-autocomplete-wrapper { position: relative; }
+.med-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0; right: 0;
+  background: #fff;
+  border: 1px solid #c8d6e8;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(6,46,107,0.13);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 9999;
+  display: none;
+}
+.med-dropdown.show { display: block; }
+.med-dropdown-item {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f4ff;
+  color: #222;
+  transition: background 0.1s;
+}
+.med-dropdown-item:last-child { border-bottom: none; }
+.med-dropdown-item:hover, .med-dropdown-item.active {
+  background: #e8eef7;
+  color: #062e6b;
+  font-weight: 500;
+}
+.med-dropdown-item .match-highlight { color: #1a6fd4; font-weight: 700; }
 </style>
 </head>
 <body class="sb-nav-fixed">
@@ -319,18 +349,6 @@ $brandNames = $db->query("
         <tbody id="medBody"></tbody>
       </table>
 
-      <datalist id="genericList">
-        <?php foreach ($medications as $med): ?>
-            <option value="<?= htmlspecialchars($med['generic_name']) ?>">
-        <?php endforeach; ?>
-        </datalist>
-
-        <datalist id="brandList">
-        <?php foreach ($medications as $med): ?>
-            <option value="<?= htmlspecialchars($med['brand_name']) ?>">
-        <?php endforeach; ?>
-        </datalist>
-
       <button type="button" class="btn btn-sm" onclick="addMedRow()"
               style="background:#062e6b; color:#fff; border:none; border-radius:6px; font-size:13px;">
         <i class="fa fa-plus me-1"></i> Add Medication
@@ -441,6 +459,10 @@ $b['payment_status'] === 'Paid' ? 'success' :
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+// ── Medication data from PHP ──────────────────────────────────────────────
+const allMedications = <?php echo json_encode($medications); ?>;
+
+// ── Queue ─────────────────────────────────────────────────────────────────
 function selectQueuePatient(num, name) {
     document.getElementById('selectedQueueNum').textContent = '#' + num;
     document.getElementById('selectedQueueName').textContent = name;
@@ -448,80 +470,157 @@ function selectQueuePatient(num, name) {
     document.getElementById('queueModal').style.display = 'none';
     document.querySelector('input[name="patient_name"]').value = name;
 }
-
-// Close modal when clicking the backdrop
 document.getElementById('queueModal').addEventListener('click', function(e) {
     if (e.target === this) this.style.display = 'none';
 });
 
+// ── Autocomplete helper ───────────────────────────────────────────────────
+function buildAutocomplete(input, getList, onSelect) {
+    const wrapper = input.closest('.med-autocomplete-wrapper');
+    const dropdown = wrapper.querySelector('.med-dropdown');
+    let activeIdx = -1;
+
+    function highlight(text, query) {
+        const idx = text.toLowerCase().indexOf(query.toLowerCase());
+        if (idx === -1) return text;
+        return text.slice(0, idx)
+            + '<span class="match-highlight">' + text.slice(idx, idx + query.length) + '</span>'
+            + text.slice(idx + query.length);
+    }
+
+    function showDropdown(items, query) {
+        if (!items.length) { dropdown.classList.remove('show'); return; }
+        dropdown.innerHTML = items.map((item, i) =>
+            `<div class="med-dropdown-item" data-idx="${i}" data-value="${item}">${highlight(item, query)}</div>`
+        ).join('');
+        dropdown.classList.add('show');
+        activeIdx = -1;
+
+        dropdown.querySelectorAll('.med-dropdown-item').forEach(el => {
+            el.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                input.value = this.dataset.value;
+                dropdown.classList.remove('show');
+                onSelect && onSelect(this.dataset.value, input);
+            });
+        });
+    }
+
+    input.addEventListener('input', function() {
+        const q = this.value.trim();
+        if (!q) { dropdown.classList.remove('show'); return; }
+        const matches = getList().filter(v => v.toLowerCase().startsWith(q.toLowerCase())).slice(0, 10);
+        showDropdown(matches, q);
+    });
+
+    input.addEventListener('keydown', function(e) {
+        const items = dropdown.querySelectorAll('.med-dropdown-item');
+        if (!items.length) return;
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            activeIdx = Math.min(activeIdx + 1, items.length - 1);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            activeIdx = Math.max(activeIdx - 1, 0);
+        } else if (e.key === 'Enter' && activeIdx >= 0) {
+            e.preventDefault();
+            input.value = items[activeIdx].dataset.value;
+            dropdown.classList.remove('show');
+            onSelect && onSelect(input.value, input);
+            return;
+        } else if (e.key === 'Escape') {
+            dropdown.classList.remove('show'); return;
+        }
+        items.forEach((el, i) => el.classList.toggle('active', i === activeIdx));
+        if (activeIdx >= 0) items[activeIdx].scrollIntoView({ block: 'nearest' });
+    });
+
+    input.addEventListener('blur', function() {
+        setTimeout(() => dropdown.classList.remove('show'), 150);
+    });
+
+    // Do NOT open on focus — only open when user types
+}
+
+// ── Medication rows ───────────────────────────────────────────────────────
 let medRowId = 0;
 
 function addMedRow() {
-  medRowId++;
-  const id = medRowId;
-  const tr = document.createElement('tr');
-  tr.id = 'med-row-' + id;
-  tr.innerHTML = `
-    <td>
-        <select class="form-select form-select-sm generic-select" name="med_generic[]">
-            <option value=""></option>
-            <?php foreach($genericNames as $g): ?>
-            <option value="<?= htmlspecialchars($g) ?>">
-                <?= htmlspecialchars($g) ?>
-            </option>
-            <?php endforeach; ?>
-        </select>
-    </td>
+    medRowId++;
+    const id = medRowId;
+    const tr = document.createElement('tr');
+    tr.id = 'med-row-' + id;
+    tr.innerHTML = `
+        <td>
+            <div class="med-autocomplete-wrapper">
+                <input type="text" class="form-control form-control-sm" name="med_generic[]"
+                       placeholder="Type generic name..." autocomplete="off">
+                <div class="med-dropdown"></div>
+            </div>
+        </td>
+        <td>
+            <div class="med-autocomplete-wrapper">
+                <input type="text" class="form-control form-control-sm" name="med_brand[]"
+                       placeholder="Type brand name..." autocomplete="off">
+                <div class="med-dropdown"></div>
+            </div>
+        </td>
+        <td><input type="number" class="form-control form-control-sm" name="med_qty[]" value="1" min="1"
+                  oninput="calcMedRow(${id}); syncMedFee();"></td>
+        <td><input type="number" class="form-control form-control-sm" name="med_price[]" placeholder="0.00" step="0.01" min="0"
+                  oninput="calcMedRow(${id}); syncMedFee();"></td>
+        <td class="text-end fw-semibold text-primary" id="med-sub-${id}">₱0.00</td>
+        <td><button type="button" class="btn btn-sm btn-link text-danger p-0"
+                    onclick="removeMedRow(${id})"><i class="fa fa-times"></i></button></td>
+    `;
+    document.getElementById('medBody').appendChild(tr);
 
-    <td>
-        <select class="form-select form-select-sm brand-select" name="med_brand[]">
-            <option value=""></option>
-            <?php foreach($brandNames as $b): ?>
-            <option value="<?= htmlspecialchars($b) ?>">
-                <?= htmlspecialchars($b) ?>
-            </option>
-            <?php endforeach; ?>
-        </select>
-    </td>
-    <td><input type="number" class="form-control form-control-sm" name="med_qty[]" value="1" min="1"
-              oninput="calcMedRow(${id}); syncMedFee();"></td>
-    <td><input type="number" class="form-control form-control-sm" name="med_price[]" placeholder="0.00" step="0.01" min="0"
-              oninput="calcMedRow(${id}); syncMedFee();"></td>
-    <td class="text-end fw-semibold text-primary" id="med-sub-${id}">₱0.00</td>
-    <td><button type="button" class="btn btn-sm btn-link text-danger p-0"
-                onclick="removeMedRow(${id})"><i class="fa fa-times"></i></button></td>
-  `;
-  document.getElementById('medBody').appendChild(tr);
+    const genericInput = tr.querySelector('[name="med_generic[]"]');
+    const brandInput   = tr.querySelector('[name="med_brand[]"]');
 
+    // When a generic is picked, auto-fill the matching brand
+    buildAutocomplete(genericInput,
+        () => [...new Set(allMedications.map(m => m.generic_name))],
+        (val, inp) => {
+            const match = allMedications.find(m => m.generic_name === val);
+            if (match) brandInput.value = match.brand_name;
+        }
+    );
+
+    buildAutocomplete(brandInput,
+        () => [...new Set(allMedications.map(m => m.brand_name))],
+        (val, inp) => {
+            const match = allMedications.find(m => m.brand_name === val);
+            if (match) genericInput.value = match.generic_name;
+        }
+    );
 }
 
 function calcMedRow(id) {
-  const tr = document.getElementById('med-row-' + id);
-  const qty   = parseFloat(tr.querySelector('[name="med_qty[]"]').value)   || 0;
-  const price = parseFloat(tr.querySelector('[name="med_price[]"]').value) || 0;
-  document.getElementById('med-sub-' + id).textContent = '₱' + (qty * price).toFixed(2);
+    const tr = document.getElementById('med-row-' + id);
+    const qty   = parseFloat(tr.querySelector('[name="med_qty[]"]').value)   || 0;
+    const price = parseFloat(tr.querySelector('[name="med_price[]"]').value) || 0;
+    document.getElementById('med-sub-' + id).textContent = '₱' + (qty * price).toFixed(2);
 }
 
 function removeMedRow(id) {
-  const tr = document.getElementById('med-row-' + id);
-  if (tr) tr.remove();
-  syncMedFee();
+    const tr = document.getElementById('med-row-' + id);
+    if (tr) tr.remove();
+    syncMedFee();
 }
 
 function syncMedFee() {
-  let medTotal = 0;
-  document.querySelectorAll('#medBody tr').forEach(tr => {
-    const qty   = parseFloat(tr.querySelector('[name="med_qty[]"]')?.value)   || 0;
-    const price = parseFloat(tr.querySelector('[name="med_price[]"]')?.value) || 0;
-    medTotal += qty * price;
-  });
-
-  document.querySelector('input[name="medication_fee"]').value = medTotal.toFixed(2);
-
-  const consultFee = parseFloat(document.querySelector('input[name="consultation_fee"]')?.value) || 300;
-  document.getElementById('rcptConsult').textContent    = '₱' + consultFee.toFixed(2);
-  document.getElementById('rcptMedFee').textContent     = '₱' + medTotal.toFixed(2);
-  document.getElementById('rcptGrandTotal').textContent = '₱' + (consultFee + medTotal).toFixed(2);
+    let medTotal = 0;
+    document.querySelectorAll('#medBody tr').forEach(tr => {
+        const qty   = parseFloat(tr.querySelector('[name="med_qty[]"]')?.value)   || 0;
+        const price = parseFloat(tr.querySelector('[name="med_price[]"]')?.value) || 0;
+        medTotal += qty * price;
+    });
+    document.querySelector('input[name="medication_fee"]').value = medTotal.toFixed(2);
+    const consultFee = parseFloat(document.querySelector('input[name="consultation_fee"]')?.value) || 300;
+    document.getElementById('rcptConsult').textContent    = '₱' + consultFee.toFixed(2);
+    document.getElementById('rcptMedFee').textContent     = '₱' + medTotal.toFixed(2);
+    document.getElementById('rcptGrandTotal').textContent = '₱' + (consultFee + medTotal).toFixed(2);
 }
 
 document.querySelector('input[name="consultation_fee"]')?.addEventListener('input', syncMedFee);
