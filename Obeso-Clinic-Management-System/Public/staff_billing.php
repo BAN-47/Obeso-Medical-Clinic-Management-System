@@ -66,8 +66,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             SELECT checkup_id 
             FROM checkups 
             WHERE patient_id = ? 
-            AND DATE(checkup_date) = DATE(?)
-            LIMIT 1
+            AND checkup_date = ?
+            AND is_deleted = 0
+            LIMIT 1 
         ");
         $stmt->execute([$patient_id, $_POST['checkup_date']]);
         $checkup_id = $stmt->fetchColumn() ?: null;
