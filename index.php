@@ -1,7 +1,7 @@
 <?php
 session_start();
 
-require_once __DIR__ . "../Obeso-Medical-Clinic-Management-System/Obeso-Clinic-Management-System/Config/database.php";
+require_once __DIR__ . "/Config/database.php";
 
 $database = new Database();
 $conn = $database->connect();
@@ -13,7 +13,7 @@ $conn = $database->connect();
     
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Obeso's Clinic Management System</title>
-<link rel="icon" type="image/png" href="/Obeso-Clinic-Management-System/Includes/favicon_obeso.png" />
+<link rel="icon" type="image/png" href="./Includes/favicon_obeso.png" />
 <script src="https://cdn.tailwindcss.com"></script>
 
 <style>
@@ -41,7 +41,7 @@ $conn = $database->connect();
     <!-- Logo / Title -->
     <div class="flex justify-center mb-8">
       <div class="flex items-center justify-center w-35 h-20 overflow-hidden bg-white shadow-md" style="width: 220px; height: 120px;">
-        <img src="./Obeso-Clinic-Management-System/Includes/Obeso_Med_Clinic_logo.png alt="Obeso's Clinic Logo" class="w-full h-full object-cover rounded-3xl">
+        <img src="./Includes/Obeso_Med_Clinic_logo.png alt="Obeso's Clinic Logo" class="w-full h-full object-cover rounded-3xl">
       </div>
     </div>
 
