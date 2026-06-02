@@ -1,5 +1,3 @@
-<?php
-
 class Database {
     private $conn;
 
@@ -10,7 +8,7 @@ class Database {
             $url = getenv("DATABASE_URL");
 
             if (!$url) {
-                die("DATABASE_URL missing");
+                die("❌ DATABASE_URL missing");
             }
 
             $db = parse_url($url);
@@ -30,8 +28,17 @@ class Database {
 
                 $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+                // ✅ SUCCESS MESSAGE
+                echo "<div style='color:green; font-weight:bold;'>
+                        ✅ Database Connected Successfully!
+                      </div>";
+
             } catch (PDOException $e) {
-                die("DB Connection failed: " . $e->getMessage());
+
+                // ❌ ERROR MESSAGE
+                die("<div style='color:red; font-weight:bold;'>
+                        ❌ DB Connection failed: " . $e->getMessage() . "
+                     </div>");
             }
         }
 
