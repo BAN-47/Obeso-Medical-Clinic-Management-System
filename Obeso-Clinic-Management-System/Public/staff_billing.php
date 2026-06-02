@@ -135,6 +135,24 @@ $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $bills = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+
+$medications = $db->query("
+    SELECT generic_name, brand_name
+    FROM medications
+    ORDER BY generic_name ASC
+")->fetchAll(PDO::FETCH_ASSOC);
+
+$genericNames = $db->query("
+    SELECT DISTINCT generic_name
+    FROM medications
+    ORDER BY generic_name
+")->fetchAll(PDO::FETCH_COLUMN);
+
+$brandNames = $db->query("
+    SELECT DISTINCT brand_name
+    FROM medications
+    ORDER BY brand_name
+")->fetchAll(PDO::FETCH_COLUMN);
 ?>
 
 <!DOCTYPE html>
@@ -145,6 +163,7 @@ $bills = $stmt->fetchAll(PDO::FETCH_ASSOC);
 <title>Obeso Clinic | Billing</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet">
 <link href="../Includes/sidebarStyle.css" rel="stylesheet">
 <style>
 .sb-sidenav .nav-link.active { background-color: #062e6bff !important; color: #fff !important; font-weight: 600; }
@@ -300,6 +319,18 @@ $bills = $stmt->fetchAll(PDO::FETCH_ASSOC);
         <tbody id="medBody"></tbody>
       </table>
 
+      <datalist id="genericList">
+        <?php foreach ($medications as $med): ?>
+            <option value="<?= htmlspecialchars($med['generic_name']) ?>">
+        <?php endforeach; ?>
+        </datalist>
+
+        <datalist id="brandList">
+        <?php foreach ($medications as $med): ?>
+            <option value="<?= htmlspecialchars($med['brand_name']) ?>">
+        <?php endforeach; ?>
+        </datalist>
+
       <button type="button" class="btn btn-sm" onclick="addMedRow()"
               style="background:#062e6b; color:#fff; border:none; border-radius:6px; font-size:13px;">
         <i class="fa fa-plus me-1"></i> Add Medication
@@ -431,8 +462,27 @@ function addMedRow() {
   const tr = document.createElement('tr');
   tr.id = 'med-row-' + id;
   tr.innerHTML = `
-    <td><input type="text" class="form-control form-control-sm" name="med_generic[]" placeholder="e.g. Amoxicillin"></td>
-    <td><input type="text" class="form-control form-control-sm" name="med_brand[]" placeholder="e.g. Amoxil"></td>
+    <td>
+        <select class="form-select form-select-sm generic-select" name="med_generic[]">
+            <option value=""></option>
+            <?php foreach($genericNames as $g): ?>
+            <option value="<?= htmlspecialchars($g) ?>">
+                <?= htmlspecialchars($g) ?>
+            </option>
+            <?php endforeach; ?>
+        </select>
+    </td>
+
+    <td>
+        <select class="form-select form-select-sm brand-select" name="med_brand[]">
+            <option value=""></option>
+            <?php foreach($brandNames as $b): ?>
+            <option value="<?= htmlspecialchars($b) ?>">
+                <?= htmlspecialchars($b) ?>
+            </option>
+            <?php endforeach; ?>
+        </select>
+    </td>
     <td><input type="number" class="form-control form-control-sm" name="med_qty[]" value="1" min="1"
               oninput="calcMedRow(${id}); syncMedFee();"></td>
     <td><input type="number" class="form-control form-control-sm" name="med_price[]" placeholder="0.00" step="0.01" min="0"
@@ -442,6 +492,7 @@ function addMedRow() {
                 onclick="removeMedRow(${id})"><i class="fa fa-times"></i></button></td>
   `;
   document.getElementById('medBody').appendChild(tr);
+
 }
 
 function calcMedRow(id) {
@@ -484,5 +535,7 @@ document.querySelector('form[method="POST"]').addEventListener('submit', functio
     document.getElementById('selectedQueueNum').style.display = 'none';
 });
 </script>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 </body>
 </html>
