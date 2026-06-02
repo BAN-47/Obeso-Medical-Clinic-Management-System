@@ -10,7 +10,7 @@ from model_util import (
     ACTIVE_FEATURE_COLUMNS,
     CSV_FEATURE_COLUMNS
 )
-from database import connect_db
+from python_ai.database import connect_db
 
 api = Blueprint('api', __name__)
 logger = logging.getLogger(__name__)
