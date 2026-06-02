@@ -106,23 +106,24 @@ if (isset($_POST['login'])) {
         // Redirect by role
         switch ($role) {
             case 'superadmin':
-                header("Location: /ObesoClinicSys/public/dashboard.php");
+                header("Location: ./ObesoClinicSys/public/dashboard.php");
                 break;
             case 'doctor':
-                header("Location: ./doctor_dashboard.php");
+                header("Location: /Obeso-Clinic-Management-System/Public/doctor_dashboard.php");
                 break;
             case 'staff':
-                header("Location: ./staff_dashboard.php");
+                header("Location: /staff_dashboard.php");
                 break;
             default:
-                header("Location: ./access_denied.php");
+                header("Location: /access_denied.php");
         }
         exit();
     } else {
         $_SESSION['login_error'] = "Incorrect username or password.";
-        header("Location: /index.php");
+        header("Location: ./index.php");
         exit();
     }
 }
+
 ?>
 
