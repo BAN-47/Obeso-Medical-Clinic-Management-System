@@ -5,6 +5,11 @@ require_once __DIR__ . "/Obeso-Clinic-Management-System/Config/database.php";
 
 $database = new Database();
 $conn = $database->connect();
+
+$baseRoot = dirname($_SERVER['SCRIPT_NAME']);
+if ($baseRoot === '/' || $baseRoot === '\\') {
+    $baseRoot = '';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -51,7 +56,7 @@ $conn = $database->connect();
     </h2>
 
     <!-- Login Form -->
-    <form method="POST" action="/Obeso-Clinic-Management-System/Public/login_register.php" autocomplete="off" class="space-y-6">
+    <form method="POST" action="<?= $baseRoot ?>/Obeso-Clinic-Management-System/Public/login_register.php" autocomplete="off" class="space-y-6">
 
       <!-- Username -->
       <input
