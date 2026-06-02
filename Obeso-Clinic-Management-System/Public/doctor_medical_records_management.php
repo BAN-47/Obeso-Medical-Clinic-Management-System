@@ -541,8 +541,8 @@ function confirmSave() {
             <tbody>
             <?php foreach ($c['medications'] as $m): ?>
                 <tr>
-                    <td><?= htmlspecialchars($m['pres_generic_name']) ?></td>
-                    <td><?= htmlspecialchars($m['pres_brand_name']) ?></td>
+                    <td><?= htmlspecialchars($m['generic_name']) ?></td>
+                    <td><?= htmlspecialchars($m['brand_name']) ?></td>
                     <td><?= htmlspecialchars($m['dose']) ?></td>
                     <td><?= htmlspecialchars($m['amount']) ?></td>
                     <td><?= htmlspecialchars($m['frequency']) ?></td>

@@ -22,13 +22,7 @@ $currentPage = basename($_SERVER['PHP_SELF']);
                 <div class="sb-nav-link-icon"><i class="fa-solid fa-hospital-user"></i></div>
                 Medical Records
             </a>
-
-            <a class="nav-link <?= $currentPage == 'doctor_followup_checkup.php' ? 'active' : '' ?>"
-               href="doctor_followup_checkup.php">
-                <div class="sb-nav-link-icon"><i class="fa-solid fa-stethoscope"></i></div>
-               Follow-Ups
-            </a>
-
+            
             <a class="nav-link <?= $currentPage == 'doctor_medical_data_insights.php' ? 'active' : '' ?>"
                href="doctor_medical_data_insights.php">
                 <div class="sb-nav-link-icon"><i class="fa-solid fa-hands-helping"></i></div>
