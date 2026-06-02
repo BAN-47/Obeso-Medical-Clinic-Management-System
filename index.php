@@ -1,7 +1,7 @@
 <?php
 session_start();
 
-require_once __DIR__ . "./Config/database.php";
+require_once __DIR__ . "/Obeso-Clinic-Management-System/Config/database.php";
 
 $database = new Database();
 $conn = $database->connect();
