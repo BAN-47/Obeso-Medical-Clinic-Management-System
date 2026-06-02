@@ -1,35 +1,31 @@
 <?php
 
 class Database {
-    private $host;
-    private $port;
-    private $dbname;
-    private $username;
-    private $password;
     private $conn;
 
-    public function __construct() {
-        $this->host = getenv('DB_HOST');
-        $this->port = getenv('DB_PORT');
-        $this->dbname = getenv('DB_NAME');
-        $this->username = getenv('DB_USER');
-        $this->password = getenv('DB_PASS');
-    }
-
     public function connect() {
+
         if ($this->conn === null) {
 
+            $url = getenv("DATABASE_URL");
+
+            if (!$url) {
+                die("Missing DATABASE_URL");
+            }
+
+            $db = parse_url($url);
+
+            $host = $db["host"];
+            $port = $db["port"] ?? 3306;
+            $user = $db["user"];
+            $pass = $db["pass"] ?? ""; // handles no password
+            $dbname = ltrim($db["path"], "/");
+
             try {
-                if (!$this->host || !$this->port || !$this->dbname || !$this->username) {
-                    die("Missing DB environment variables");
-                }
-
-                $dsn = "mysql:host={$this->host};port={$this->port};dbname={$this->dbname};charset=utf8";
-
                 $this->conn = new PDO(
-                    $dsn,
-                    $this->username,
-                    $this->password
+                    "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8",
+                    $user,
+                    $pass
                 );
 
                 $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
