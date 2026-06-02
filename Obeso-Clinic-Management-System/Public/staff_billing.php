@@ -76,8 +76,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $stmt = $db->prepare("
         INSERT INTO billing
-        (patient_id, doc_id, checkup_id, billed_at, consultation_fee, medication_fee, total_amount, payment_status, payment_method)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (patient_id, doc_id, checkup_id, billed_at, consultation_fee, medication_fee, total_amount, payment_method)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ");
     $stmt->execute([
         $patient_id,
@@ -87,7 +87,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_POST['consultation_fee'],
         $_POST['medication_fee'],
         $total,
-        $_POST['payment_status'],
         $_POST['payment_method']
     ]);
 
@@ -304,20 +303,7 @@ $brandNames = $db->query("
 <input type="number" step="0.01" name="consultation_fee" class="form-control" value="300.00" readonly required>
 </div>
 
-<div class="col-md-3">
-<label class="form-label">Medication Fee</label>
-<input type="number" step="0.01" name="medication_fee" value="0" class="form-control">
-</div>
-
-<div class="col-md-3">
-<label class="form-label">Payment Status</label>
-<select name="payment_status" class="form-select">
-    <option value="">Select Status</option>
-    <option>Unpaid</option>
-    <option>Partial</option>
-    <option>Paid</option>
-</select>
-</div>
+<input type="hidden" name="medication_fee" value="0">
 
 <div class="col-md-3">
 <label class="form-label">Payment Method</label>
@@ -407,7 +393,6 @@ $brandNames = $db->query("
 <th>Doctor</th>
 <th>Checkup Date</th>
 <th>Total</th>
-<th>Status</th>
 <th>Method</th>
 <th>Date Billed</th>
 </tr>
@@ -419,12 +404,6 @@ $brandNames = $db->query("
 <td><?= htmlspecialchars($b['doc_fullname']) ?></td>
 <td><?= $b['checkup_date'] ? date('M d, Y', strtotime($b['checkup_date'])) : '—' ?></td>
 <td>₱<?= number_format($b['total_amount'],2) ?></td>
-<td>
-<span class="badge bg-<?= 
-$b['payment_status'] === 'Paid' ? 'success' :
-($b['payment_status'] === 'Partial' ? 'warning' : 'danger')
-?>"><?= $b['payment_status'] ?></span>
-</td>
 <td><?= htmlspecialchars($b['payment_method']) ?></td>
 <td><?= date('M d, Y', strtotime($b['billed_at'])) ?></td>
 </tr>
