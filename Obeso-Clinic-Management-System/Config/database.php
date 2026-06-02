@@ -1,48 +1,32 @@
 <?php
 
 class Database {
-    private $host;
-    private $dbname;
-    private $username;
-    private $password;
-    private $port;
     private $conn;
-
-    public function __construct() {
-        // Railway MySQL ENV variables
-        $this->host = getenv('MYSQLHOST');
-        $this->dbname = getenv('MYSQLDATABASE');
-        $this->username = getenv('MYSQLUSER');
-        $this->password = getenv('MYSQLPASSWORD');
-        $this->port = getenv('MYSQLPORT');
-    }
 
     public function connect() {
         if ($this->conn === null) {
 
-            try {
-                // Validate environment variables
-                if (!$this->host || !$this->dbname || !$this->username || !$this->port) {
-                    throw new Exception("Missing Railway MySQL environment variables");
-                }
+            $url = getenv("DATABASE_URL");
 
-                // Create PDO connection
-                $dsn = "mysql:host={$this->host};port={$this->port};dbname={$this->dbname};charset=utf8";
-
-                $this->conn = new PDO(
-                    $dsn,
-                    $this->username,
-                    $this->password
-                );
-
-                // Enable error mode
-                $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-            } catch (PDOException $e) {
-                die("Database connection failed: " . $e->getMessage());
-            } catch (Exception $e) {
-                die("Configuration error: " . $e->getMessage());
+            if (!$url) {
+                die("Missing DATABASE_URL");
             }
+
+            $dbparts = parse_url($url);
+
+            $host = $dbparts["host"];
+            $port = $dbparts["port"];
+            $user = $dbparts["user"];
+            $pass = $dbparts["pass"];
+            $dbname = ltrim($dbparts["path"], "/");
+
+            $this->conn = new PDO(
+                "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8",
+                $user,
+                $pass
+            );
+
+            $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
         }
 
         return $this->conn;
