@@ -251,7 +251,7 @@ $bills = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 <div class="col-md-3">
 <label class="form-label">Consultation Fee</label>
-<input type="number" step="0.01" name="consultation_fee" class="form-control" value="300.00" required>
+<input type="number" step="0.01" name="consultation_fee" class="form-control" value="300.00" readonly required>
 </div>
 
 <div class="col-md-3">
