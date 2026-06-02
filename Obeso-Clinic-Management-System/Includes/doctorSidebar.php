@@ -8,7 +8,7 @@ $currentPage = basename($_SERVER['PHP_SELF']);
             <a class="nav-link <?= $currentPage == 'doctor_dashboard.php' ? 'active' : '' ?>"
                href="doctor_dashboard.php">
                 <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div>
-                Dashboard
+                Management
             </a>
 
             <a class="nav-link <?= $currentPage == 'doctor_profile.php' ? 'active' : '' ?>"
