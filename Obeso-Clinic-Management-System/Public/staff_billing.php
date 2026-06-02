@@ -72,24 +72,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     /* FIND CHECKUP ID BY DATE */
     $checkup_id = null;
     if (!empty($_POST['checkup_date'])) {
-        $stmt = $db->prepare("\n            SELECT checkup_id \n            FROM checkups \n            WHERE patient_id = ? \n              AND doc_id = ? \n              AND checkup_date = ?\n            LIMIT 1\n        ");
+        $stmt = $db->prepare("
+            SELECT checkup_id 
+            FROM checkups 
+            WHERE patient_id = ? 
+              AND doc_id = ? 
+              AND checkup_date = ?
+            LIMIT 1
+        ");
         $stmt->execute([$patient_id, $_POST['doc_id'], $_POST['checkup_date']]);
         $checkup_id = $stmt->fetchColumn();
     }
 
-    // Only insert if no error detected
-    if (!$error) {
-        $stmt = $db->prepare("\n            INSERT INTO billing\n            (patient_id, doc_id, checkup_id, billed_at, consultation_fee, medication_fee, total_amount, payment_method)\n            VALUES (?, ?, ?, ?, ?, ?, ?, ?)\n        ");
-        $stmt->execute([
-            $patient_id,
-            $_POST['doc_id'],
-            $checkup_id ?: null,
-            !empty($_POST['billed_at']) ? $_POST['billed_at'] : null,
-            $consultation_fee,
-            $medication_fee,
-            $total,
-            $_POST['payment_method'] ?? null
-        ]);
+    $stmt = $db->prepare("
+        INSERT INTO billing
+        (patient_id, doc_id, checkup_id, billed_at, consultation_fee, medication_fee, total_amount, payment_method)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ");
+    $stmt->execute([
+        $patient_id,
+        $_POST['doc_id'],
+        $checkup_id ?: null,
+        !empty($_POST['billed_at']) ? $_POST['billed_at'] : null,
+        $_POST['consultation_fee'],
+        $_POST['medication_fee'],
+        $total,
+        $_POST['payment_method']
+    ]);
 
         header("Location: staff_billing.php?success=1");
         exit();
@@ -388,7 +397,6 @@ $brandNames = $db->query("
           <span id="rcptGrandTotal">₱0.00</span>
         </div>
       </div>
-
     </div>
   </div>
 </div>
