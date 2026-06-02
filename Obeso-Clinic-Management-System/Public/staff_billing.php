@@ -30,27 +30,9 @@ $offset = ($page - 1) * $limit;
 $search_date = isset($_GET['checkup_date']) && !empty($_GET['checkup_date']) ? $_GET['checkup_date'] : null;
 
 /* ================= HANDLE BILLING SUBMIT ================= */
-// initialize error container for user-friendly messages
-$error = null;
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    // Recompute medication fee server-side from posted rows to avoid trusting client values
-    $medication_fee = 0.0;
-    if (!empty($_POST['med_qty']) && is_array($_POST['med_qty'])) {
-        $qtyArr   = $_POST['med_qty'];
-        $priceArr = $_POST['med_price'] ?? [];
-        for ($i = 0; $i < count($qtyArr); $i++) {
-            $qty = isset($qtyArr[$i]) ? (float) str_replace(',', '', $qtyArr[$i]) : 0.0;
-            $price = isset($priceArr[$i]) ? (float) str_replace(',', '', $priceArr[$i]) : 0.0;
-            if ($qty > 0 && $price > 0) {
-                $medication_fee += $qty * $price;
-            }
-        }
-    }
-
-    $consultation_fee = isset($_POST['consultation_fee']) ? (float) str_replace(',', '', $_POST['consultation_fee']) : 0.0;
-    $total = $consultation_fee + $medication_fee;
+    $total = $_POST['consultation_fee'] + $_POST['medication_fee'];
 
     /* GET PATIENT ID FROM INPUT */
     $stmt = $db->prepare("SELECT patient_id FROM patients WHERE full_name = ? LIMIT 1");
@@ -58,38 +40,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $patient_id = $stmt->fetchColumn();
 
     if (!$patient_id) {
-<<<<<<< HEAD
-        $error = 'Patient not found. Please select an existing patient from the list or add the patient first.';
-=======
         header("Location: staff_billing.php?error=patient_not_found");
         exit();
->>>>>>> 044cd3315e1c7e55843ffe0a10c9da7cc59c5d28
     }
 
     /* DUPLICATION CHECK */
-    $stmt = $db->prepare("\n        SELECT COUNT(*) FROM billing \n        WHERE patient_id = ? \n          AND doc_id = ? \n          AND consultation_fee = ? \n          AND medication_fee = ? \n          AND total_amount = ?\n          AND billed_at >= CURDATE()\n    ");
+    $stmt = $db->prepare("
+        SELECT COUNT(*) FROM billing 
+        WHERE patient_id = ? 
+          AND doc_id = ? 
+          AND consultation_fee = ? 
+          AND medication_fee = ? 
+          AND total_amount = ?
+          AND billed_at >= CURDATE()
+    ");
     $stmt->execute([
-        $patient_id, $_POST['doc_id'], $consultation_fee, $medication_fee, $total]);
+        $patient_id, $_POST['doc_id'], $_POST['consultation_fee'], $_POST['medication_fee'], $total]);
     if ($stmt->fetchColumn() > 0) {
-<<<<<<< HEAD
-        $error = 'A billing with the same amounts for this patient and doctor already exists today.';
-    }
-
-    /* FIND CHECKUP ID BY DATE */
-    $checkup_id = null;
-    if (!empty($_POST['checkup_date'])) {
-        $stmt = $db->prepare("
-            SELECT checkup_id 
-            FROM checkups 
-            WHERE patient_id = ? 
-              AND doc_id = ? 
-              AND checkup_date = ?
-            LIMIT 1
-        ");
-        $stmt->execute([$patient_id, $_POST['doc_id'], $_POST['checkup_date']]);
-        $checkup_id = $stmt->fetchColumn();
-    }
-=======
         header("Location: staff_billing.php?error=duplicate");
         exit();
     }
@@ -108,7 +75,6 @@ if (!empty($_POST['checkup_date'])) {
     $stmt->execute([$patient_id, $_POST['checkup_date']]);
     $checkup_id = $stmt->fetchColumn() ?: null;
 }
->>>>>>> 044cd3315e1c7e55843ffe0a10c9da7cc59c5d28
 
     $stmt = $db->prepare("
         INSERT INTO billing
@@ -119,16 +85,15 @@ if (!empty($_POST['checkup_date'])) {
         $patient_id,
         $_POST['doc_id'],
         $checkup_id ?: null,
-        !empty($_POST['billed_at']) ? $_POST['billed_at'] : null,
+        !empty($_POST['checkup_date']) ? $_POST['checkup_date'] . ' ' . date('H:i:s') : date('Y-m-d H:i:s'),
         $_POST['consultation_fee'],
         $_POST['medication_fee'],
         $total,
         $_POST['payment_method']
     ]);
 
-        header("Location: staff_billing.php?success=1");
-        exit();
-    }
+    header("Location: staff_billing.php?success=1");
+    exit();
 }
 
 /* ================= FETCH DATA ================= */
@@ -172,21 +137,11 @@ $stmt->execute();
 $bills = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 
-// Try to include a price column if it exists in `medications` table
-$hasPriceCol = false;
-try {
-    $col = $db->query("SHOW COLUMNS FROM medications LIKE 'price'")->fetch();
-    if ($col) $hasPriceCol = true;
-} catch (Exception $e) {
-    $hasPriceCol = false;
-}
-
-if ($hasPriceCol) {
-    $medications = $db->query("SELECT generic_name, brand_name, price FROM medications ORDER BY generic_name ASC")->fetchAll(PDO::FETCH_ASSOC);
-} else {
-    // fallback: return empty price field so front-end can still work
-    $medications = $db->query("SELECT generic_name, brand_name, '' AS price FROM medications ORDER BY generic_name ASC")->fetchAll(PDO::FETCH_ASSOC);
-}
+$medications = $db->query("
+    SELECT generic_name, brand_name
+    FROM medications
+    ORDER BY generic_name ASC
+")->fetchAll(PDO::FETCH_ASSOC);
 
 $genericNames = $db->query("
     SELECT DISTINCT generic_name
@@ -285,27 +240,6 @@ $patientCheckups = $db->query("
     <?php endif; ?>
     <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
 </div>
-<?php endif; ?>
-
-<?php if (!empty($error)): ?>
-<!-- Error Modal -->
-<div class="modal fade" id="errorModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">Error</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p><?= htmlspecialchars($error) ?></p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
-<script>document.addEventListener('DOMContentLoaded', function(){ var m = new bootstrap.Modal(document.getElementById('errorModal')); m.show(); });</script>
 <?php endif; ?>
 
 <!-- ================= QUEUE BUTTON ================= -->
@@ -454,7 +388,7 @@ $patientCheckups = $db->query("
 </div>
 
 <div class="col-md-12">
-<button type="submit" id="saveBillingBtn" class="btn btn-primary w-100"><i class="fa fa-save"></i> Save Billing</button>
+<button class="btn btn-primary w-100"><i class="fa fa-save"></i> Save Billing</button>
 </div>
 </form>
 </div>
@@ -655,15 +589,7 @@ function addMedRow() {
         () => [...new Set(allMedications.map(m => m.generic_name))],
         (val, inp) => {
             const match = allMedications.find(m => m.generic_name === val);
-            if (match) {
-                brandInput.value = match.brand_name;
-                // auto-fill unit price if available
-                const priceInput = tr.querySelector('[name="med_price[]"]');
-                if (priceInput && match.price !== undefined && match.price !== null && match.price !== '') {
-                    priceInput.value = parseFloat(match.price).toFixed(2);
-                    calcMedRow(id); syncMedFee();
-                }
-            }
+            if (match) brandInput.value = match.brand_name;
         }
     );
 
@@ -671,14 +597,7 @@ function addMedRow() {
         () => [...new Set(allMedications.map(m => m.brand_name))],
         (val, inp) => {
             const match = allMedications.find(m => m.brand_name === val);
-            if (match) {
-                genericInput.value = match.generic_name;
-                const priceInput = tr.querySelector('[name="med_price[]"]');
-                if (priceInput && match.price !== undefined && match.price !== null && match.price !== '') {
-                    priceInput.value = parseFloat(match.price).toFixed(2);
-                    calcMedRow(id); syncMedFee();
-                }
-            }
+            if (match) genericInput.value = match.generic_name;
         }
     );
 }
@@ -725,25 +644,10 @@ document.querySelector('input[name="consultation_fee"]')?.addEventListener('inpu
 addMedRow();
 syncMedFee();
 
-document.querySelector('form[method="POST"]').addEventListener('submit', function(e) {
-    // Ensure totals are up-to-date before sending to server
-    if (typeof syncMedFee === 'function') syncMedFee();
-
-    // Disable submit button to prevent double-submit
-    const btn = document.getElementById('saveBillingBtn');
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Saving...';
-    }
-
-    // clear selected queue display
-    const selNum = document.getElementById('selectedQueueNum');
-    const selName = document.getElementById('selectedQueueName');
-    if (selNum) {
-        selNum.textContent = '';
-        selNum.style.display = 'none';
-    }
-    if (selName) selName.textContent = '';
+document.querySelector('form[method="POST"]').addEventListener('submit', function() {
+    document.getElementById('selectedQueueNum').textContent = '';
+    document.getElementById('selectedQueueName').textContent = '';
+    document.getElementById('selectedQueueNum').style.display = 'none';
 });
 </script>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
