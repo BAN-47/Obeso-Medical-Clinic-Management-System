@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, jsonify
 import logging
 import pandas as pd
 
-from python_ai.model_util import (
+from model_util import (
     build_input_features,
     get_patient_history,
     model,
@@ -136,7 +136,7 @@ def predict_trend():
         df['rr']      = pd.to_numeric(df['respiratory_rate'], errors='coerce').fillna(0)
 
         # Build aggregate symptom profile (mean across recent checkups)
-        from python_ai.model_util import text_contains_keywords, KEYWORDS
+        from model_util import text_contains_keywords, KEYWORDS
 
         avg_fever      = float((df['temp'] >= 38.0).mean())
         avg_high_bp    = float((df['bp_sys'] >= 140).mean())
