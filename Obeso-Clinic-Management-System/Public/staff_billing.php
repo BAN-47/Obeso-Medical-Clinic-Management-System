@@ -60,19 +60,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     /* FIND CHECKUP ID BY DATE */
-    $checkup_id = null;
-    if (!empty($_POST['checkup_date'])) {
-        $stmt = $db->prepare("
-            SELECT checkup_id 
-            FROM checkups 
-            WHERE patient_id = ? 
-            AND checkup_date = ?
-            AND is_deleted = 0
-            LIMIT 1 
-        ");
-        $stmt->execute([$patient_id, $_POST['checkup_date']]);
-        $checkup_id = $stmt->fetchColumn() ?: null;
-    }
+$checkup_id = null;
+if (!empty($_POST['checkup_date'])) {
+    $stmt = $db->prepare("
+        SELECT checkup_id 
+        FROM checkups 
+        WHERE patient_id = ? 
+        AND checkup_date = ?
+        AND is_deleted = 0
+        LIMIT 1 
+    ");
+    $stmt->execute([$patient_id, $_POST['checkup_date']]);
+    $checkup_id = $stmt->fetchColumn() ?: null;
+}
 
     $stmt = $db->prepare("
         INSERT INTO billing
@@ -152,6 +152,14 @@ $brandNames = $db->query("
     FROM medications
     ORDER BY brand_name
 ")->fetchAll(PDO::FETCH_COLUMN);
+
+$patientCheckups = $db->query("
+    SELECT p.full_name, c.checkup_date
+    FROM checkups c
+    JOIN patients p ON p.patient_id = c.patient_id
+    WHERE c.is_deleted = 0
+    ORDER BY c.checkup_date DESC
+")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>
@@ -211,11 +219,16 @@ $brandNames = $db->query("
 <main class="container-fluid px-4 py-4">
 
 <?php if (isset($_GET['success'])): ?>
-<div class="alert alert-success" style="margin-top: -40px;">Billing record successfully added.</div>
+<div class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2" 
+     style="margin-bottom: 10px; padding: 10px 16px; font-size: 14px;" role="alert">
+    <i class="fa fa-circle-check"></i>
+    Billing record successfully added.
+    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+</div>
 <?php endif; ?>
 
 <!-- ================= QUEUE BUTTON ================= -->
-<div class="d-flex align-items-center gap-3 mb-3 flex-wrap" style="margin-top: -30px;">
+<div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
 
     <button onclick="document.getElementById('queueModal').style.display='flex'"
         style="background-color:#1a6fd4; color:#fff; border:none; border-radius:6px; padding:10px 22px; font-size:14px; font-weight:500; cursor:pointer; letter-spacing:0.2px;">
@@ -274,7 +287,7 @@ $brandNames = $db->query("
 <form method="POST" class="row g-3">
 <div class="col-md-4">
 <label class="form-label">Patient</label>
-<input type="text" name="patient_name" class="form-control" list="patients" required>
+<input type="text" name="patient_name" id="patientInput" class="form-control" list="patients" required>
 <datalist id="patients">
 <?php foreach ($latestPatients as $p): ?>
 <option value="<?= htmlspecialchars($p['full_name']) ?>">
@@ -586,6 +599,16 @@ function removeMedRow(id) {
     if (tr) tr.remove();
     syncMedFee();
 }
+
+const patientCheckups = <?php echo json_encode($patientCheckups); ?>;
+
+document.getElementById('patientInput').addEventListener('change', function() {
+    const name = this.value.trim();
+    const match = patientCheckups.find(r => r.full_name === name);
+    if (match) {
+        document.querySelector('input[name="checkup_date"]').value = match.checkup_date;
+    }
+});
 
 function syncMedFee() {
     let medTotal = 0;
