@@ -7,31 +7,47 @@ class Database {
 
         if ($this->conn === null) {
 
-            $url = getenv("DATABASE_URL");
+            // ✅ RAILWAY MYSQL VARIABLES (PRIMARY METHOD)
+            $host = getenv("MYSQLHOST");
+            $port = getenv("MYSQLPORT") ?: 3306;
+            $user = getenv("MYSQLUSER");
+            $pass = getenv("MYSQLPASSWORD");
+            $dbname = getenv("MYSQLDATABASE");
 
-            if (!$url) {
-                die("DATABASE_URL missing");
+            // ❌ fallback to DATABASE_URL (optional compatibility)
+            if (!$host && getenv("DATABASE_URL")) {
+                $url = getenv("DATABASE_URL");
+                $db = parse_url($url);
+
+                $host = $db["host"];
+                $port = $db["port"] ?? 3306;
+                $user = $db["user"];
+                $pass = $db["pass"] ?? "";
+                $dbname = ltrim($db["path"], "/");
             }
 
-            $db = parse_url($url);
-
-            $host = $db["host"];
-            $port = $db["port"] ?? 3306;
-            $user = $db["user"];
-            $pass = $db["pass"] ?? "";
-            $dbname = ltrim($db["path"], "/");
+            // 🚨 VALIDATION
+            if (!$host || !$user || !$dbname) {
+                die("❌ Missing DB environment variables");
+            }
 
             try {
                 $this->conn = new PDO(
-                    "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8",
+                    "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4",
                     $user,
-                    $pass
+                    $pass,
+                    [
+                        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                        PDO::MYSQL_ATTR_INIT_COMMAND => "USE `$dbname`"
+                    ]
                 );
 
-                $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                // optional debug (remove later)
+                // echo "✅ DB Connected to: $dbname";
 
             } catch (PDOException $e) {
-                die("DB Connection failed: " . $e->getMessage());
+                die("❌ DB Connection failed: " . $e->getMessage());
             }
         }
 
