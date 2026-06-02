@@ -1,41 +1,81 @@
 <?php
+     class Database {
+          private $host = "localhost";
+          private $dbname = "obeso_clinic_database";
+          private $username = "root";
+          private $password = "";
+          private $conn;
 
-class Database {
-    private $conn;
+          public function connect() {
+               if ($this->conn == null) {
+                    try {
+                         $this->conn = new PDO("mysql:host={$this->host};dbname={$this->dbname}",
+                                        $this->username, $this->password);
+                         $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+                    }catch(PDOException $e) {
+                         echo "Connected failed : " . $e->getMessage();
+                    }
+               }
 
-    public function connect() {
+               return $this->conn;
+          }
 
-        if ($this->conn === null) {
+          // Auto-start Python API if not running
+          public static function ensureAPIRunning() {
 
-            $host = getenv("MYSQLHOST");
-            $port = getenv("MYSQLPORT") ?: 3306;
-            $user = getenv("MYSQLUSER");
-            $pass = getenv("MYSQLPASSWORD");
-            $dbname = getenv("MYSQLDATABASE");
+               $apiUrl = "http://127.0.0.1:8000/";
 
-            if (!$host || !$user || !$dbname) {
-                die("❌ Missing Railway MySQL variables");
-            }
+               // ================= CHECK IF API RUNNING =================
 
-            try {
-                $this->conn = new PDO(
-                    "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4",
-                    $user,
-                    $pass,
-                    [
-                        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-                    ]
-                );
+               $ch = curl_init($apiUrl);
 
-                // optional test
-                // echo "DB CONNECTED OK";
+               curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+               curl_setopt($ch, CURLOPT_TIMEOUT, 2);
 
-            } catch (PDOException $e) {
-                die("❌ DB Connection failed: " . $e->getMessage());
-            }
-        }
+               $response = @curl_exec($ch);
 
-        return $this->conn;
-    }
-}
+               $httpCode = @curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+               curl_close($ch);
+
+               // ================= API ALREADY RUNNING =================
+
+               if ($httpCode == 200) {
+                    return true;
+               }
+
+               // ================= PATHS =================
+
+               $pythonPath = "C:\\xampp\\htdocs\\VS_PHP\\Obeso-Medical-Clinic-Management-System\\.venv\\Scripts\\python.exe";
+
+               $appPath = realpath(__DIR__ . "/../python_ai/app.py");
+
+               // ================= VALIDATE FILES =================
+
+               if (!file_exists($pythonPath)) {
+                    error_log("Python not found");
+                    return false;
+               }
+
+               if (!file_exists($appPath)) {
+                    error_log("app.py not found");
+                    return false;
+               }
+
+               // ================= START FLASK API =================
+
+               $command = "start /B \"\" \"$pythonPath\" \"$appPath\"";
+
+               pclose(popen("cmd /c $command", "r"));
+
+               // ================= WAIT FOR SERVER =================
+
+               sleep(3);
+
+               return true;
+          }
+     }
+
+     // Auto-start API on every page load
+     Database::ensureAPIRunning();
+ ?>
