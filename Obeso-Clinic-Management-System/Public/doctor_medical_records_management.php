@@ -177,6 +177,22 @@ if (isset($_GET['patient_id'])) {
         $checkups[$i]['medications'] = $mstmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }
+
+$aiPredictionsData = null;
+if (!empty($patient)) {
+    $sourceCheckup = !empty($pendingCheckup) ? $pendingCheckup : (!empty($checkups) ? $checkups[0] : null);
+    if ($sourceCheckup) {
+        $aiPredictionsData = [
+            'patient_id' => $patient['patient_id'],
+            'chief_complaint' => $sourceCheckup['chief_complaint'] ?? '',
+            'history_present_illness' => $sourceCheckup['history_present_illness'] ?? '',
+            'blood_pressure' => $sourceCheckup['blood_pressure'] ?? '',
+            'respiratory_rate' => $sourceCheckup['respiratory_rate'] ?? '',
+            'heart_rate' => $sourceCheckup['heart_rate'] ?? '',
+            'temperature' => $sourceCheckup['temperature'] ?? '',
+        ];
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -495,6 +511,25 @@ if (isset($_GET['patient_id'])) {
                         </div>
                     </div>
 
+                    <!-- ================= AI DATA MINING INSIGHTS ================= -->
+                    <div class="card shadow mb-4" id="aiInsightsCard" style="display: none;">
+                        <div class="section-header">
+                            <i class="fa-solid fa-brain me-2"></i> AI Data Mining Insights
+                        </div>
+                        <div class="card-body" id="aiInsightsBody">
+                            <div class="text-center py-4">
+                                <i class="fa-solid fa-spinner fa-spin fa-2x text-primary"></i>
+                                <p class="mt-3 mb-0">Analyzing patient history and vitals...</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card shadow mb-4 border-danger" id="aiInsightsErrorCard" style="display: none;">
+                        <div class="section-header bg-danger text-white">
+                            <i class="fa-solid fa-triangle-exclamation me-2"></i> AI Data Mining Notice
+                        </div>
+                        <div class="card-body text-danger" id="aiInsightsErrorBody"></div>
+                    </div>
+
                     <!-- ================= PRESENTING COMPLAINT & VITALS DISPLAY ================= -->
                     <div class="card shadow mb-4">
                         <div class="section-header d-flex justify-content-between align-items-center">
@@ -644,6 +679,105 @@ if (isset($_GET['patient_id'])) {
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="../Public/autoFormatType.js"></script>
+    <script src="../Public/autoFormatType.js"></script>
+    <script>
+        const AI_PREDICTION_PAYLOAD = <?= json_encode($aiPredictionsData, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>;
+        const AI_API_URL = 'http://127.0.0.1:8000/predict';
+
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function setAiInsights(html) {
+            const card = document.getElementById('aiInsightsCard');
+            const body = document.getElementById('aiInsightsBody');
+            if (!card || !body) return;
+            body.innerHTML = html;
+            card.style.display = 'block';
+        }
+
+        function setAiError(message) {
+            const card = document.getElementById('aiInsightsErrorCard');
+            const body = document.getElementById('aiInsightsErrorBody');
+            if (!card || !body) return;
+            body.textContent = message;
+            card.style.display = 'block';
+        }
+
+        async function loadAiInsights() {
+            if (!AI_PREDICTION_PAYLOAD || Object.keys(AI_PREDICTION_PAYLOAD).length === 0) {
+                return;
+            }
+
+            try {
+                const response = await fetch(AI_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(AI_PREDICTION_PAYLOAD)
+                });
+
+                const data = await response.json();
+                if (!response.ok || data.error) {
+                    throw new Error(data.error || 'Unable to retrieve AI insights.');
+                }
+
+                const top3 = data.top3 || [];
+                const followup = data.followup || {};
+                const history = data.history_used
+                    ? `Based on ${escapeHtml(data.past_checkups)} prior completed checkup(s).`
+                    : 'Based on current patient symptoms and available history.';
+
+                const top3Html = top3.length
+                    ? `<ul class="mb-0 ps-3">${top3.map(i => `<li>${escapeHtml(i.disease)} — ${escapeHtml(i.confidence)}%</li>`).join('')}</ul>`
+                    : '<div class="text-muted">No top predictions available.</div>';
+
+                const actionsHtml = followup.actions && followup.actions.length
+                    ? `<div class="mt-2"><strong>Action items:</strong><ul class="mb-0 ps-3">${followup.actions.map(a => `<li>${escapeHtml(a)}</li>`).join('')}</ul></div>`
+                    : '';
+
+                const testsHtml = followup.tests && followup.tests.length
+                    ? `<div class="mt-2"><strong>Suggested tests:</strong><ul class="mb-0 ps-3">${followup.tests.map(t => `<li>${escapeHtml(t)}</li>`).join('')}</ul></div>`
+                    : '';
+
+                setAiInsights(`
+                    <div class="row gx-3 gy-3">
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded h-100">
+                                <strong>Predicted Diagnosis</strong>
+                                <div class="fs-4 fw-bold mt-2">${escapeHtml(data.disease || 'Unknown')}</div>
+                                <div class="text-muted">Confidence: ${escapeHtml(data.confidence?.toFixed?.(1) ?? data.confidence ?? 0)}%</div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded h-100">
+                                <strong>Top likely diagnoses</strong>
+                                ${top3Html}
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="p-3 bg-light rounded h-100">
+                                <strong>Follow-up recommendation</strong>
+                                <div class="mt-2">${followup.urgent ? '<span class="badge bg-danger">Urgent</span>' : '<span class="badge bg-success">Standard</span>'}</div>
+                                <div class="mt-2">Follow up in ${escapeHtml(followup.days ?? 7)} day(s).</div>
+                                ${actionsHtml}
+                                ${testsHtml}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3 text-muted">${history}</div>
+                `);
+            } catch (err) {
+                setAiError(err.message || 'AI service is unavailable.');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadAiInsights);
+    </script>
 </body>
 </html>
