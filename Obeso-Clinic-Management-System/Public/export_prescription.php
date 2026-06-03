@@ -189,7 +189,7 @@ $html = <<<HTML
     /* ══ SOAP NOTES ══ */
     .soap-area {
         padding: 10px 30px 0 20px;
-        font-size: 25px;
+        font-size: 18px;
         color: #000;
         line-height: 1.8;
         margin-top: 15px;

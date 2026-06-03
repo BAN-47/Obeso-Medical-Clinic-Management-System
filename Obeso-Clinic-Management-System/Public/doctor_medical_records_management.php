@@ -56,13 +56,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
             throw new Exception("Duplicate checkup detected for this patient on the same date with the same doctor and diagnosis.");
         }
 
-        if (empty($_POST['checkup_date'])) {
-            throw new Exception("Checkup date is required.");
-        }
-
         $checkup_id = $checkupObj->add(
             $patient_id,
-            !empty($_POST['checkup_date']) ? $_POST['checkup_date'] : null,
+            $_POST['checkup_date'],
             $_POST['doc_id'] ?? null,
             !empty($_POST['chief_complaint']) ? $_POST['chief_complaint'] : null,
             !empty($_POST['history_present_illness']) ? $_POST['history_present_illness'] : null,
@@ -438,7 +434,7 @@ if (!empty($patient)) {
                                                     <div class="col-md-8"><label class="form-label text-muted small">Diagnosis</label><input name="diagnosis" class="form-control" placeholder="Diagnosis"></div>
                                                 </div>
                                                 <div class="mt-3">
-                                                    <label class="form-label text-muted small">SOAP Notes (HPI / O / A / P)</label>
+                                                    <label class="form-label text-muted small">SOAP Notes (HPI / O / A)</label>
                                                     <textarea
                                                         id="soap_input"
                                                         name="history_present_illness"
@@ -608,7 +604,7 @@ if (!empty($patient)) {
                                 <div class="card-body">
                                     <p><strong>Diagnosis:</strong> <?= htmlspecialchars($c['diagnosis']) ?></p>
                                     <p><strong>Chief Complaint:</strong> <?= htmlspecialchars($c['chief_complaint']) ?></p>
-                                    <p><strong>HPI:</strong> <?= htmlspecialchars($c['history_present_illness']) ?></p>
+                                    <p><strong>HPI:</strong><div class="bg-light p-3 rounded border"><?= nl2br(htmlspecialchars($c['history_present_illness'] ?? 'No HPI recorded.')) ?></div></p>
 
                                     <hr>
                                     <div class="row text-center">
