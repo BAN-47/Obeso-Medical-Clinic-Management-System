@@ -56,9 +56,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
             throw new Exception("Duplicate checkup detected for this patient on the same date with the same doctor and diagnosis.");
         }
 
+        if (empty($_POST['checkup_date'])) {
+            throw new Exception("Checkup date is required.");
+        }
+
         $checkup_id = $checkupObj->add(
             $patient_id,
-            $_POST['checkup_date'],
+            !empty($_POST['checkup_date']) ? $_POST['checkup_date'] : null,
             $_POST['doc_id'] ?? null,
             !empty($_POST['chief_complaint']) ? $_POST['chief_complaint'] : null,
             !empty($_POST['history_present_illness']) ? $_POST['history_present_illness'] : null,

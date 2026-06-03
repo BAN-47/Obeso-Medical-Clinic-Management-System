@@ -1,5 +1,4 @@
 <?php
-
 require_once '../vendor/autoload.php';
 require_once '../Config/database.php';
 require_once '../Class/patient_data.php';
@@ -55,16 +54,16 @@ if (!empty($soap_notes)) {
     }
 }
 
-// Logo — embedded as base64 (requires GD enabled in php.ini)
 $logo_html = '';
-if (extension_loaded('gd')) {
-    $logo_path = __DIR__ . '/../Includes/favicon_obeso.png';
-    if (file_exists($logo_path)) {
-        $logo_data = base64_encode(file_get_contents($logo_path));
-        $logo_src  = 'data:image/png;base64,' . $logo_data;
-        $logo_html = "<img src=\"{$logo_src}\" style=\"width:105px;height:105px;display:block;\">";
-    }
+
+$logo_path = realpath(__DIR__ . '/../Includes/favicon_obeso.png');
+
+if ($logo_path && file_exists($logo_path)) {
+    $logo_data = base64_encode(file_get_contents($logo_path));
+    $logo_src  = 'data:image/png;base64,' . $logo_data;
+    $logo_html = "<img src=\"{$logo_src}\" style=\"width:105px;height:105px;display:block;\">";
 }
+
 if ($logo_html === '') {
     $logo_html = "<div style=\"width:105px;height:105px;background:#1d5f7a;border-radius:4px;\"></div>";
 }
