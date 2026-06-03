@@ -1,13 +1,12 @@
 from flask import Blueprint, render_template, request, jsonify
 import logging
 import pandas as pd
+import model_util
 
 from model_util import (
     build_input_features,
     get_patient_history,
-    model,
     get_followup_recommendation,
-    ACTIVE_FEATURE_COLUMNS,
     CSV_FEATURE_COLUMNS
 )
 from database import connect_db
@@ -27,17 +26,16 @@ def home():
 @api.route("/retrain", methods=["POST"])
 def retrain():
     try:
-        global model, ACTIVE_FEATURE_COLUMNS
-        from model_util import train_model, ACTIVE_FEATURE_COLUMNS as old_cols
-        
         logger.info("Manual retrain requested")
-        model = train_model()
-        ACTIVE_FEATURE_COLUMNS = old_cols  # already updated by train_model
+        # Train and update the model in model_util module
+        model_util.model = model_util.train_model()
+        
+        logger.info(f"Model retrained. Active features: {model_util.ACTIVE_FEATURE_COLUMNS}")
         
         return jsonify({
             "success": True,
             "message": "Model retrained successfully",
-            "active_features": ACTIVE_FEATURE_COLUMNS
+            "active_features": model_util.ACTIVE_FEATURE_COLUMNS
         })
     except Exception as e:
         logger.exception("Retrain error")
@@ -73,9 +71,9 @@ def predict():
 
         input_data, features = build_input_features(data, patient_history)
 
-        prediction    = model.predict(input_data)[0]
-        probabilities = model.predict_proba(input_data)[0]
-        classes       = model.classes_
+        prediction    = model_util.model.predict(input_data)[0]
+        probabilities = model_util.model.predict_proba(input_data)[0]
+        classes       = model_util.model.classes_
 
         scores = {
             d: round(float(p) * 100, 1)
@@ -202,12 +200,12 @@ def predict_trend():
             'most_common_past_diagnosis': 0,
         }
 
-        row = {col: trend_input[col] for col in ACTIVE_FEATURE_COLUMNS}
-        X   = pd.DataFrame([row])[ACTIVE_FEATURE_COLUMNS]
+        row = {col: trend_input[col] for col in model_util.ACTIVE_FEATURE_COLUMNS}
+        X   = pd.DataFrame([row])[model_util.ACTIVE_FEATURE_COLUMNS]
 
-        prediction    = model.predict(X)[0]
-        probabilities = model.predict_proba(X)[0]
-        classes       = model.classes_
+        prediction    = model_util.model.predict(X)[0]
+        probabilities = model_util.model.predict_proba(X)[0]
+        classes       = model_util.model.classes_
 
         scores = {
             d: round(float(p) * 100, 1)
@@ -239,7 +237,7 @@ def _csv_based_trend():
     """
     try:
         import os, csv as csv_mod
-        from python_ai.model_util import CSV_PATH
+        from model_util import CSV_PATH
 
         disease_scores = {}
         with open(CSV_PATH, newline='') as f:
@@ -247,12 +245,12 @@ def _csv_based_trend():
             for row in reader:
                 synth = {k: int(row.get(k, 0)) for k in CSV_FEATURE_COLUMNS}
                 # pad to ACTIVE_FEATURE_COLUMNS if needed
-                for col in ACTIVE_FEATURE_COLUMNS:
+                for col in model_util.ACTIVE_FEATURE_COLUMNS:
                     if col not in synth:
                         synth[col] = 0
-                X = pd.DataFrame([{col: synth[col] for col in ACTIVE_FEATURE_COLUMNS}])[ACTIVE_FEATURE_COLUMNS]
-                probs = model.predict_proba(X)[0]
-                for d, p in zip(model.classes_, probs):
+                X = pd.DataFrame([{col: synth[col] for col in model_util.ACTIVE_FEATURE_COLUMNS}])[model_util.ACTIVE_FEATURE_COLUMNS]
+                probs = model_util.model.predict_proba(X)[0]
+                for d, p in zip(model_util.model.classes_, probs):
                     disease_scores[d] = disease_scores.get(d, 0) + p
 
         top3 = sorted(disease_scores.items(), key=lambda x: x[1], reverse=True)[:3]
