@@ -93,13 +93,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
 
         $db->commit();
         
-        // Trigger AI model retrain in background (non-blocking)
-        @file_get_contents('http://127.0.0.1:8000/retrain', false, stream_context_create([
-            'http' => [
-                'method' => 'POST',
-                'timeout' => 5
-            ]
-        ]));
+        // Log successful save (retrain will happen manually or via cron, not here)
+        error_log("New checkup saved for patient ID: {$patient_id}");
         
         header("Location: doctor_medical_records_management.php?patient_id={$patient_id}&success=1");
         exit();
@@ -692,7 +687,7 @@ if (!empty($patient)) {
     <script src="../Public/autoFormatType.js"></script>
     <script>
         const AI_PREDICTION_PAYLOAD = <?= json_encode($aiPredictionsData, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>;
-        const AI_API_URL = 'http://127.0.0.1:8000/predict';
+        const AI_API_URL = 'ai_predict.php';
 
         function escapeHtml(str) {
             if (str === null || str === undefined) return '';
@@ -733,8 +728,10 @@ if (!empty($patient)) {
                 });
 
                 const data = await response.json();
-                if (!response.ok || data.error) {
-                    throw new Error(data.error || 'Unable to retrieve AI insights.');
+                
+                // Safety check: ensure response is valid
+                if (!response.ok || !data || data.error) {
+                    throw new Error(data?.error || data?.details || 'Unable to retrieve AI insights');
                 }
 
                 const top3 = data.top3 || [];
