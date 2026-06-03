@@ -15,6 +15,17 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'staff') {
 require_once "../Config/database.php";
 $db = (new Database())->connect();
 
+/* ================= AJAX: FETCH DOCTOR FROM QUEUE ================= */
+if (isset($_GET['fetch_queue_doctor']) && isset($_GET['queue_id'])) {
+    header('Content-Type: application/json');
+    $qid = (int)$_GET['queue_id'];
+    $stmt = $db->prepare("SELECT doc_id FROM queue WHERE queue_id = ?");
+    $stmt->execute([$qid]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    echo json_encode($row ? ['success' => true, 'doc_id' => $row['doc_id']] : ['success' => false]);
+    exit();
+}
+
 /* ================= STAFF INFO ================= */
 $stmt = $db->prepare("SELECT * FROM staff WHERE staff_id = ?");
 $stmt->execute([$_SESSION['staff_id']]);
@@ -28,6 +39,30 @@ $offset = ($page - 1) * $limit;
 
 /* ================= SEARCH ================= */
 $search_date = isset($_GET['checkup_date']) && !empty($_GET['checkup_date']) ? $_GET['checkup_date'] : null;
+
+/* ================= CHECK FOR QUEUED BILLING DATA ================= */
+$queuedBillingData = null;
+if (isset($_GET['queue_id'])) {
+    $queueId = (int)$_GET['queue_id'];
+
+    $qstmt = $db->prepare("
+        SELECT q.queue_id, q.queue_number, p.full_name
+        FROM queue q
+        JOIN patients p ON p.patient_id = q.patient_id
+        WHERE q.queue_id = ? AND q.status = 'done'
+    ");
+    $qstmt->execute([$queueId]);
+    $queuedBillingData = $qstmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($queuedBillingData && isset($_GET['doc_id'])) {
+        $dstmt = $db->prepare("SELECT doc_id, doc_fullname FROM doctors WHERE doc_id = ?");
+        $dstmt->execute([(int)$_GET['doc_id']]);
+        $doc = $dstmt->fetch(PDO::FETCH_ASSOC);
+        if ($doc) {
+            $queuedBillingData = array_merge($queuedBillingData, $doc);
+        }
+    }
+}
 
 /* ================= HANDLE BILLING SUBMIT ================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -102,6 +137,13 @@ $latestPatients = $db->query("SELECT full_name FROM patients ORDER BY patient_id
 
 /* DOCTORS */
 $doctors = $db->query("SELECT doc_id, doc_fullname FROM doctors")->fetchAll(PDO::FETCH_ASSOC);
+
+$doneQueuePatients = $db->query("SELECT q.queue_id, q.queue_number, p.full_name
+    FROM queue q
+    JOIN patients p ON p.patient_id = q.patient_id
+    WHERE q.status = 'done'
+    ORDER BY q.done_at DESC
+    LIMIT 15")->fetchAll(PDO::FETCH_ASSOC);
 
 /* TOTAL BILLS COUNT FOR PAGINATION */
 $countSql = "SELECT COUNT(*) FROM billing b LEFT JOIN checkups c ON b.checkup_id = c.checkup_id";
@@ -250,10 +292,10 @@ $patientCheckups = $db->query("
     Click Patient
     </button>
 
-    <div class="d-flex align-items-center gap-2 px-3 py-2 rounded border bg-white" id="queueBadge" style="display:none !important;">
+    <div class="d-flex align-items-center gap-2 px-3 py-2 rounded border bg-white" id="queueBadge" style="display:<?= $queuedBillingData ? 'flex' : 'none' ?>;">
         <span class="text-muted" style="font-size:13px;">Queue</span>
-        <span class="badge px-2 py-1" style="background:#062e6b; font-size:13px;" id="selectedQueueNum"></span>
-        <span class="fw-semibold" id="selectedQueueName"></span>
+        <span class="badge px-2 py-1" style="background:#062e6b; font-size:13px;" id="selectedQueueNum"><?= $queuedBillingData ? '#' . htmlspecialchars($queuedBillingData['queue_number']) : '' ?></span>
+        <span class="fw-semibold" id="selectedQueueName"><?= $queuedBillingData ? htmlspecialchars($queuedBillingData['full_name']) : '' ?></span>
     </div>
 
 </div>
@@ -269,27 +311,16 @@ $patientCheckups = $db->query("
         </div>
 
         <div style="overflow-y:auto; padding:8px;">
-            <!-- Queue items — replace with PHP foreach output -->
-            <div class="queue-item d-flex align-items-center gap-3 px-3 py-2 rounded" onclick="selectQueuePatient(1, 'Maria Santos')">
-                <span class="badge px-2 py-1" style="background:#e8eef7; color:#062e6b; font-size:13px; min-width:36px;">#1</span>
-                <span>Maria Santos</span>
-            </div>
-            <div class="queue-item d-flex align-items-center gap-3 px-3 py-2 rounded" onclick="selectQueuePatient(2, 'Juan dela Cruz')">
-                <span class="badge px-2 py-1" style="background:#e8eef7; color:#062e6b; font-size:13px; min-width:36px;">#2</span>
-                <span>Juan dela Cruz</span>
-            </div>
-            <div class="queue-item d-flex align-items-center gap-3 px-3 py-2 rounded" onclick="selectQueuePatient(3, 'Ana Reyes')">
-                <span class="badge px-2 py-1" style="background:#e8eef7; color:#062e6b; font-size:13px; min-width:36px;">#3</span>
-                <span>Ana Reyes</span>
-            </div>
-            <div class="queue-item d-flex align-items-center gap-3 px-3 py-2 rounded" onclick="selectQueuePatient(4, 'Pedro Manalo')">
-                <span class="badge px-2 py-1" style="background:#e8eef7; color:#062e6b; font-size:13px; min-width:36px;">#4</span>
-                <span>Pedro Manalo</span>
-            </div>
-            <div class="queue-item d-flex align-items-center gap-3 px-3 py-2 rounded" onclick="selectQueuePatient(5, 'Liza Bautista')">
-                <span class="badge px-2 py-1" style="background:#e8eef7; color:#062e6b; font-size:13px; min-width:36px;">#5</span>
-                <span>Liza Bautista</span>
-            </div>
+            <?php if (count($doneQueuePatients)): ?>
+                <?php foreach ($doneQueuePatients as $q): ?>
+                <div class="queue-item d-flex align-items-center gap-3 px-3 py-2 rounded" onclick="selectQueuePatient(<?= (int)$q['queue_id'] ?>, '<?= htmlspecialchars($q['queue_number']) ?>', '<?= htmlspecialchars($q['full_name']) ?>')">
+                    <span class="badge px-2 py-1" style="background:#e8eef7; color:#062e6b; font-size:13px; min-width:36px;">#<?= htmlspecialchars($q['queue_number']) ?></span>
+                    <span><?= htmlspecialchars($q['full_name']) ?></span>
+                </div>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <div class="text-center text-muted py-4">No completed queue patients are available yet.</div>
+            <?php endif; ?>
         </div>
 
     </div>
@@ -299,10 +330,21 @@ $patientCheckups = $db->query("
 <div class="card shadow mb-4" style="margin-top: 20px;">
 <div class="card-body">
 <h5 class="text-primary mb-3"><i class="fa fa-file-invoice"></i> Billing Form</h5>
+
+<?php if ($queuedBillingData): ?>
+<div class="alert alert-info alert-dismissible fade show d-flex align-items-center gap-2" 
+     style="margin-bottom: 15px; padding: 10px 16px; font-size: 14px;" role="alert">
+    <i class="fa fa-check-circle me-1"></i>
+    Form auto-filled from completed checkup (Queue #<?= htmlspecialchars($queuedBillingData['queue_id']) ?>)
+    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+</div>
+<?php endif; ?>
+
 <form method="POST" class="row g-3">
 <div class="col-md-4">
 <label class="form-label">Patient</label>
-<input type="text" name="patient_name" id="patientInput" class="form-control" list="patients" required>
+<input type="text" name="patient_name" id="patientInput" class="form-control" list="patients" required
+       value="<?= $queuedBillingData ? htmlspecialchars($queuedBillingData['full_name']) : '' ?>">
 <datalist id="patients">
 <?php foreach ($latestPatients as $p): ?>
 <option value="<?= htmlspecialchars($p['full_name']) ?>">
@@ -316,14 +358,16 @@ $patientCheckups = $db->query("
 <select name="doc_id" class="form-select" required>
 <option value="">Select Doctor</option>
 <?php foreach ($doctors as $d): ?>
-<option value="<?= $d['doc_id'] ?>"><?= htmlspecialchars($d['doc_fullname']) ?></option>
+<option value="<?= $d['doc_id'] ?>" <?= $queuedBillingData && $d['doc_id'] === (int)$queuedBillingData['doc_id'] ? 'selected' : '' ?>><?= htmlspecialchars($d['doc_fullname']) ?></option>
 <?php endforeach; ?>
 </select>
 </div>
 
+<input type="hidden" name="selected_queue_id" id="selectedQueueId" value="<?= $queuedBillingData ? htmlspecialchars($queuedBillingData['queue_id']) : '' ?>">
+
 <div class="col-md-4">
 <label class="form-label">Checkup Date (Optional)</label>
-<input type="date" name="checkup_date" class="form-control">
+<input type="date" name="checkup_date" class="form-control" value="<?= $queuedBillingData ? date('Y-m-d') : '' ?>">
 </div>
 
 <div class="col-md-3">
@@ -469,12 +513,26 @@ $patientCheckups = $db->query("
 const allMedications = <?php echo json_encode($medications); ?>;
 
 // ── Queue ─────────────────────────────────────────────────────────────────
-function selectQueuePatient(num, name) {
-    document.getElementById('selectedQueueNum').textContent = '#' + num;
+function selectQueuePatient(queueId, queueNumber, name) {
+    document.getElementById('selectedQueueNum').textContent = '#' + queueNumber;
     document.getElementById('selectedQueueName').textContent = name;
     document.getElementById('queueBadge').style.display = 'flex';
     document.getElementById('queueModal').style.display = 'none';
     document.querySelector('input[name="patient_name"]').value = name;
+    document.getElementById('selectedQueueId').value = queueId;
+    const checkupInput = document.querySelector('input[name="checkup_date"]');
+    if (checkupInput && !checkupInput.value) {
+        checkupInput.value = new Date().toISOString().slice(0, 10);
+    }
+
+    // Auto-detect doctor from queue
+    fetch('staff_billing.php?fetch_queue_doctor=1&queue_id=' + encodeURIComponent(queueId), { credentials: 'same-origin' })
+        .then(r => r.json())
+        .then(d => {
+            if (d.success && d.doc_id) {
+                document.querySelector('select[name="doc_id"]').value = d.doc_id;
+            }
+        });
 }
 document.getElementById('queueModal').addEventListener('click', function(e) {
     if (e.target === this) this.style.display = 'none';
