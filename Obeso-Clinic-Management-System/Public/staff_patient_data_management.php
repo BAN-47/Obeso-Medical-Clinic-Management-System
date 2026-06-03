@@ -110,6 +110,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['queue_old_patient']))
     exit();
 }
 
+/* ================= UPDATE PATIENT ================= */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_patient'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        $stmt = $db->prepare("
+            UPDATE patients SET
+                full_name = ?, age = ?, sex = ?, contact_number = ?,
+                civil_status = ?, religion = ?, occupation = ?,
+                contact_person = ?, contact_person_age = ?, address = ?
+            WHERE patient_id = ?
+        ");
+        $stmt->execute([
+            $_POST['full_name'], $_POST['age'], $_POST['sex'],
+            $_POST['contact_number'], $_POST['civil_status'],
+            $_POST['religion'], $_POST['occupation'],
+            $_POST['contact_person'], $_POST['contact_person_age'],
+            $_POST['address'], (int)$_POST['patient_id']
+        ]);
+        echo json_encode(['success' => true]);
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+    exit();
+}
+
 /* ================= SAVE NEW PATIENT ================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
     header('Content-Type: application/json; charset=utf-8');
@@ -444,6 +469,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
     </div>
 </div>
 
+
+
 <main class="container-fluid px-4 py-4">
 
 <?php if ($slotsFull): ?>
@@ -568,6 +595,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
 
 <!-- OLD PATIENT PANEL -->
 <div class="panel" id="panelOld">
+
+    <!-- Search Card -->
     <div class="card section-card mb-4 shadow-sm">
         <div class="section-header">
             <i class="fa-solid fa-magnifying-glass me-2"></i> Search Existing Patient
@@ -588,49 +617,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
         </div>
     </div>
 
-    <!-- Patient Info Display -->
-    <div class="card section-card shadow-sm" id="patientInfoCard">
+    <!-- Patient Info Card -->
+    <div class="card section-card shadow-sm" id="patientInfoCard" style="display:none;">
         <div class="section-header d-flex align-items-center justify-content-between">
             <span><i class="fa-solid fa-id-card me-2"></i> Patient Record</span>
-            <button type="button" class="btn btn-sm btn-light ms-auto"
-                    onclick="clearPatient()" title="Clear">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
+            <div class="d-flex gap-2 ms-auto">
+                <button type="button" class="btn btn-sm btn-warning" id="editPatientBtn"
+                        onclick="toggleEditPatient()">
+                    <i class="fa-solid fa-pen-to-square me-1"></i> Edit
+                </button>
+                <button type="button" class="btn btn-sm btn-success d-none" id="savePatientBtn"
+                        onclick="savePatientEdit()">
+                    <i class="fa-solid fa-floppy-disk me-1"></i> Save
+                </button>
+                <button type="button" class="btn btn-sm btn-light"
+                        onclick="clearPatient()" title="Clear">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
         </div>
+
         <div class="card-body p-0">
             <div class="pi-grid">
                 <div class="pi-field">
                     <span class="pi-lbl">Name: </span><span class="pi-val" id="pi_name">—</span>
+                    <input class="form-control form-control-sm d-none pi-input mt-1" id="pi_name_input">
                 </div>
                 <div class="pi-field">
                     <span class="pi-lbl">Age: </span><span class="pi-val" id="pi_age">—</span>
+                    <input class="form-control form-control-sm d-none pi-input mt-1" id="pi_age_input" type="number">
                 </div>
                 <div class="pi-field">
                     <span class="pi-lbl">Sex: </span><span class="pi-val" id="pi_sex">—</span>
+                    <select class="form-select form-select-sm d-none pi-input mt-1" id="pi_sex_input">
+                        <option>Male</option><option>Female</option><option>Other</option>
+                    </select>
                 </div>
                 <div class="pi-field">
                     <span class="pi-lbl">Contact: </span><span class="pi-val" id="pi_contact">—</span>
+                    <input class="form-control form-control-sm d-none pi-input mt-1" id="pi_contact_input">
                 </div>
                 <div class="pi-field">
                     <span class="pi-lbl">Civil Status: </span><span class="pi-val" id="pi_civil">—</span>
+                    <select class="form-select form-select-sm d-none pi-input mt-1" id="pi_civil_input">
+                        <option>Single</option><option>Married</option><option>Widowed</option><option>Divorced</option>
+                    </select>
                 </div>
                 <div class="pi-field">
                     <span class="pi-lbl">Religion: </span><span class="pi-val" id="pi_religion">—</span>
+                    <select class="form-select form-select-sm d-none pi-input mt-1" id="pi_religion_input">
+                        <option>Catholic</option><option>Born Again</option>
+                        <option>The Seventh-day Adventist (SDA)</option>
+                        <option>Jehovah's Witnesses</option><option>Muslim</option>
+                        <option>Protestantism</option><option>Atheist</option>
+                    </select>
                 </div>
                 <div class="pi-field">
                     <span class="pi-lbl">Occupation: </span><span class="pi-val" id="pi_occupation">—</span>
+                    <input class="form-control form-control-sm d-none pi-input mt-1" id="pi_occupation_input">
                 </div>
                 <div class="pi-field"></div>
                 <div class="pi-field">
                     <span class="pi-lbl">Contact Person: </span><span class="pi-val" id="pi_cp">—</span>
+                    <input class="form-control form-control-sm d-none pi-input mt-1" id="pi_cp_input">
                 </div>
                 <div class="pi-field">
                     <span class="pi-lbl">Contact Person Age: </span><span class="pi-val" id="pi_cp_age">—</span>
+                    <input class="form-control form-control-sm d-none pi-input mt-1" id="pi_cp_age_input" type="number">
                 </div>
                 <div class="pi-field"></div>
                 <div class="pi-field"></div>
                 <div class="pi-field pi-full">
                     <span class="pi-lbl">Address: </span><span class="pi-val" id="pi_address">—</span>
+                    <textarea class="form-control form-control-sm d-none pi-input mt-1" id="pi_address_input" rows="2"></textarea>
                 </div>
             </div>
         </div>
@@ -638,37 +697,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
         <div class="px-4 pb-3">
             <div class="mb-3">
                 <label class="form-label text-muted small fw-semibold">Chief Complaint</label>
-                <textarea id="old_chief_complaint" class="form-control" placeholder="Chief Complaint" rows="2" required></textarea>
+                <textarea id="old_chief_complaint" class="form-control" placeholder="Chief Complaint" rows="2"></textarea>
             </div>
             <div class="row g-2">
                 <div class="col">
                     <label class="form-label text-muted small">Blood Pressure</label>
-                    <input id="old_blood_pressure" class="form-control" placeholder="BP" required>
+                    <input id="old_blood_pressure" class="form-control" placeholder="BP">
                 </div>
                 <div class="col">
                     <label class="form-label text-muted small">Respiratory Rate</label>
-                    <input id="old_respiratory_rate" class="form-control" placeholder="RR" required >
+                    <input id="old_respiratory_rate" class="form-control" placeholder="RR">
                 </div>
                 <div class="col">
                     <label class="form-label text-muted small">Weight</label>
-                    <input id="old_weight" class="form-control" placeholder="WT" required>
+                    <input id="old_weight" class="form-control" placeholder="WT">
                 </div>
                 <div class="col">
                     <label class="form-label text-muted small">Heart Rate</label>
-                    <input id="old_heart_rate" class="form-control" placeholder="HR" required>
+                    <input id="old_heart_rate" class="form-control" placeholder="HR">
                 </div>
                 <div class="col">
                     <label class="form-label text-muted small">Temperature</label>
-                    <input id="old_temperature" class="form-control" placeholder="TEMP" required>
+                    <input id="old_temperature" class="form-control" placeholder="TEMP">
                 </div>
             </div>
         </div>
+
         <div class="card-footer bg-transparent border-top-0 px-4 pb-3 pt-0" id="queueOldBtn" style="display:none;">
             <button type="button" class="btn btn-primary btn-lg" onclick="showConfirmModalOld()">
                 <i class="fa-solid fa-arrow-right-to-bracket me-2"></i> Queue Patient
             </button>
         </div>
     </div>
+
 </div>
 
 </main>
@@ -729,6 +790,7 @@ function selectPatient(index) {
 
     document.getElementById('searchInput').value = p.full_name;
     document.getElementById('searchResults').style.display = 'none';
+
     document.getElementById('pi_name').textContent       = p.full_name          || '—';
     document.getElementById('pi_age').textContent        = p.age                || '—';
     document.getElementById('pi_sex').textContent        = p.sex                || '—';
@@ -739,6 +801,13 @@ function selectPatient(index) {
     document.getElementById('pi_cp').textContent         = p.contact_person     || '—';
     document.getElementById('pi_cp_age').textContent     = p.contact_person_age || '—';
     document.getElementById('pi_address').textContent    = p.address            || '—';
+
+    // Always start in view mode
+    document.querySelectorAll('.pi-val').forEach(el => el.classList.remove('d-none'));
+    document.querySelectorAll('.pi-input').forEach(el => el.classList.add('d-none'));
+    document.getElementById('editPatientBtn').classList.remove('d-none');
+    document.getElementById('savePatientBtn').classList.add('d-none');
+
     document.getElementById('patientInfoCard').style.display = 'block';
     document.getElementById('queueOldBtn').style.display = 'block';
 }
@@ -851,6 +920,65 @@ document.addEventListener('click', e => {
     if (e.target.id === 'confirmModal') closeConfirmModal();
 });
 
+function toggleEditPatient() {
+    const map = {
+        pi_name: 'pi_name_input', pi_age: 'pi_age_input', pi_sex: 'pi_sex_input',
+        pi_contact: 'pi_contact_input', pi_civil: 'pi_civil_input',
+        pi_religion: 'pi_religion_input', pi_occupation: 'pi_occupation_input',
+        pi_cp: 'pi_cp_input', pi_cp_age: 'pi_cp_age_input', pi_address: 'pi_address_input'
+    };
+    Object.entries(map).forEach(([valId, inputId]) => {
+        const val = document.getElementById(valId).textContent.replace(/^[^:]+:\s*/, '').trim();
+        const inp = document.getElementById(inputId);
+        if (val !== '—') inp.value = val;
+        document.getElementById(valId).classList.add('d-none');
+        inp.classList.remove('d-none');
+    });
+    document.getElementById('editPatientBtn').classList.add('d-none');
+    document.getElementById('savePatientBtn').classList.remove('d-none');
+}
+
+function savePatientEdit() {
+    const fd = new FormData();
+    fd.append('update_patient',     '1');
+    fd.append('patient_id',         window._selectedPatientId);
+    fd.append('full_name',          document.getElementById('pi_name_input').value);
+    fd.append('age',                document.getElementById('pi_age_input').value);
+    fd.append('sex',                document.getElementById('pi_sex_input').value);
+    fd.append('contact_number',     document.getElementById('pi_contact_input').value);
+    fd.append('civil_status',       document.getElementById('pi_civil_input').value);
+    fd.append('religion',           document.getElementById('pi_religion_input').value);
+    fd.append('occupation',         document.getElementById('pi_occupation_input').value);
+    fd.append('contact_person',     document.getElementById('pi_cp_input').value);
+    fd.append('contact_person_age', document.getElementById('pi_cp_age_input').value);
+    fd.append('address',            document.getElementById('pi_address_input').value);
+
+    fetch(window.location.pathname, { method: 'POST', credentials: 'same-origin', body: fd })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                const map = {
+                    pi_name: 'full_name', pi_age: 'age', pi_sex: 'sex',
+                    pi_contact: 'contact_number', pi_civil: 'civil_status',
+                    pi_religion: 'religion', pi_occupation: 'occupation',
+                    pi_cp: 'contact_person', pi_cp_age: 'contact_person_age',
+                    pi_address: 'address'
+                };
+                Object.entries(map).forEach(([dispId, key]) => {
+                    document.getElementById(dispId).textContent = fd.get(key) || '—';
+                    document.getElementById(dispId).classList.remove('d-none');
+                    document.getElementById(dispId.replace('pi_', 'pi_') + '_input') &&
+                        document.getElementById(dispId + '_input')?.classList.add('d-none');
+                });
+                document.querySelectorAll('.pi-input').forEach(el => el.classList.add('d-none'));
+                document.getElementById('editPatientBtn').classList.remove('d-none');
+                document.getElementById('savePatientBtn').classList.add('d-none');
+            } else {
+                alert('Error updating: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(() => alert('Network error. Please try again.'));
+}
 </script>
 <script src="../Includes/patientAge.js"></script>
 

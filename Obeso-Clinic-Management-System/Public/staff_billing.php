@@ -19,10 +19,22 @@ $db = (new Database())->connect();
 if (isset($_GET['fetch_queue_doctor']) && isset($_GET['queue_id'])) {
     header('Content-Type: application/json');
     $qid = (int)$_GET['queue_id'];
-    $stmt = $db->prepare("SELECT doc_id FROM queue WHERE queue_id = ?");
+    $stmt = $db->prepare("
+        SELECT c.doc_id, c.checkup_date
+        FROM queue q
+        JOIN checkups c ON c.patient_id = q.patient_id
+        WHERE q.queue_id = ?
+          AND c.is_deleted = 0
+          AND DATE(c.checkup_date) = CURDATE()
+        ORDER BY c.checkup_id DESC
+        LIMIT 1
+    ");
     $stmt->execute([$qid]);
     $row = $stmt->fetch(PDO::FETCH_ASSOC);
-    echo json_encode($row ? ['success' => true, 'doc_id' => $row['doc_id']] : ['success' => false]);
+    echo json_encode($row && $row['doc_id']
+        ? ['success' => true, 'doc_id' => $row['doc_id'], 'checkup_date' => $row['checkup_date']]
+        : ['success' => false]
+    );
     exit();
 }
 
@@ -540,20 +552,23 @@ function selectQueuePatient(queueId, queueNumber, name) {
     document.getElementById('queueModal').style.display = 'none';
     document.querySelector('input[name="patient_name"]').value = name;
     document.getElementById('selectedQueueId').value = queueId;
-    const checkupInput = document.querySelector('input[name="checkup_date"]');
-    if (checkupInput && !checkupInput.value) {
-        checkupInput.value = new Date().toISOString().slice(0, 10);
-    }
 
-    // Auto-detect doctor from queue
+    // Reset fields first
+    document.querySelector('select[name="doc_id"]').value = '';
+    document.querySelector('input[name="checkup_date"]').value = '';
+
     fetch('staff_billing.php?fetch_queue_doctor=1&queue_id=' + encodeURIComponent(queueId), { credentials: 'same-origin' })
-        .then(r => r.json())
-        .then(d => {
-            if (d.success && d.doc_id) {
-                document.querySelector('select[name="doc_id"]').value = d.doc_id;
-            }
-        });
+    .then(r => r.json())
+    .then(d => {
+        if (d.doc_id) {
+            document.querySelector('select[name="doc_id"]').value = d.doc_id;
+        }
+        document.querySelector('input[name="checkup_date"]').value = d.checkup_date
+            ? d.checkup_date.slice(0, 10)
+            : new Date().toISOString().slice(0, 10);
+    });
 }
+
 document.getElementById('queueModal').addEventListener('click', function(e) {
     if (e.target === this) this.style.display = 'none';
 });
