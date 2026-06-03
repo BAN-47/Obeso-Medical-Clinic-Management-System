@@ -145,6 +145,17 @@ $doneQueuePatients = $db->query("SELECT q.queue_id, q.queue_number, p.full_name
     ORDER BY q.done_at DESC
     LIMIT 15")->fetchAll(PDO::FETCH_ASSOC);
 
+/* ALREADY BILLED QUEUE IDs TODAY */
+$billedQueueIds = [];
+$billedStmt = $db->query("
+    SELECT DISTINCT q.queue_id 
+    FROM billing b
+    JOIN queue q ON q.patient_id = b.patient_id
+    WHERE DATE(b.billed_at) = CURDATE()
+    AND q.status = 'done'
+");
+$billedQueueIds = $billedStmt->fetchAll(PDO::FETCH_COLUMN);
+
 /* TOTAL BILLS COUNT FOR PAGINATION */
 $countSql = "SELECT COUNT(*) FROM billing b LEFT JOIN checkups c ON b.checkup_id = c.checkup_id";
 if ($search_date) {
@@ -250,6 +261,7 @@ $patientCheckups = $db->query("
   font-weight: 500;
 }
 .med-dropdown-item .match-highlight { color: #1a6fd4; font-weight: 700; }
+.billed-item:hover { background: transparent !important; }
 </style>
 </head>
 <body class="sb-nav-fixed">
@@ -310,17 +322,25 @@ $patientCheckups = $db->query("
                     style="background:none; border:none; font-size:20px; cursor:pointer; color:#6c757d; line-height:1;">&times;</button>
         </div>
 
-        <div style="overflow-y:auto; padding:8px;">
-            <?php if (count($doneQueuePatients)): ?>
-                <?php foreach ($doneQueuePatients as $q): ?>
-                <div class="queue-item d-flex align-items-center gap-3 px-3 py-2 rounded" onclick="selectQueuePatient(<?= (int)$q['queue_id'] ?>, '<?= htmlspecialchars($q['queue_number']) ?>', '<?= htmlspecialchars($q['full_name']) ?>')">
-                    <span class="badge px-2 py-1" style="background:#e8eef7; color:#062e6b; font-size:13px; min-width:36px;">#<?= htmlspecialchars($q['queue_number']) ?></span>
-                    <span><?= htmlspecialchars($q['full_name']) ?></span>
-                </div>
-                <?php endforeach; ?>
-            <?php else: ?>
-                <div class="text-center text-muted py-4">No completed queue patients are available yet.</div>
-            <?php endif; ?>
+        <div style="overflow-y:auto; padding:8px; display:flex; flex-direction:column;">
+            <?php foreach ($doneQueuePatients as $q): 
+                $isBilled = in_array($q['queue_id'], $billedQueueIds);
+            ?>
+            <div class="queue-item d-flex align-items-center gap-3 px-3 py-2 rounded
+                <?= $isBilled ? 'billed-item' : '' ?>"
+                <?= !$isBilled ? "onclick=\"selectQueuePatient({$q['queue_id']}, '{$q['queue_number']}', '" . htmlspecialchars($q['full_name'], ENT_QUOTES) . "')\"" : '' ?>
+                style="<?= $isBilled ? 'opacity:0.45; cursor:not-allowed; order:1;' : 'order:0;' ?>">
+
+                <span class="badge px-2 py-1" 
+                    style="background:<?= $isBilled ? '#ccc' : '#e8eef7' ?>; color:<?= $isBilled ? '#888' : '#062e6b' ?>; font-size:13px; min-width:36px;">
+                    #<?= htmlspecialchars($q['queue_number']) ?>
+                </span>
+                <span><?= htmlspecialchars($q['full_name']) ?></span>
+                <?php if ($isBilled): ?>
+                    <span class="ms-auto badge" style="background:#d4edda; color:#155724; font-size:11px;">Billed</span>
+                <?php endif; ?>
+            </div>
+            <?php endforeach; ?>
         </div>
 
     </div>
