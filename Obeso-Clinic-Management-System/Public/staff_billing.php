@@ -203,7 +203,7 @@ $bills = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 
 $medications = $db->query("
-    SELECT generic_name, brand_name
+    SELECT generic_name, brand_name, unit_price
     FROM medications
     ORDER BY generic_name ASC
 ")->fetchAll(PDO::FETCH_ASSOC);
@@ -667,7 +667,7 @@ function addMedRow() {
         <td><input type="number" class="form-control form-control-sm" name="med_qty[]" value="1" min="1"
                   oninput="calcMedRow(${id}); syncMedFee();"></td>
         <td><input type="number" class="form-control form-control-sm" name="med_price[]" placeholder="0.00" step="0.01" min="0"
-                  oninput="calcMedRow(${id}); syncMedFee();"></td>
+                  oninput="calcMedRow(${id}); syncMedFee();" readonly></td>
         <td class="text-end fw-semibold text-primary" id="med-sub-${id}">₱0.00</td>
         <td><button type="button" class="btn btn-sm btn-link text-danger p-0"
                     onclick="removeMedRow(${id})"><i class="fa fa-times"></i></button></td>
@@ -682,17 +682,138 @@ function addMedRow() {
         () => [...new Set(allMedications.map(m => m.generic_name))],
         (val, inp) => {
             const match = allMedications.find(m => m.generic_name === val);
-            if (match) brandInput.value = match.brand_name;
+            if (match) {
+                brandInput.value = match.brand_name;
+                const priceInput = tr.querySelector('[name="med_price[]"]');
+                priceInput.value = match.unit_price ? parseFloat(match.unit_price).toFixed(2) : '';
+                calcMedRow(id);
+                syncMedFee();
+            }
         }
     );
 
     buildAutocomplete(brandInput,
-        () => [...new Set(allMedications.map(m => m.brand_name))],
+        () => {
+            const typedGeneric = genericInput.value.trim();
+            if (typedGeneric) {
+                return [...new Set(
+                    allMedications
+                        .filter(m => m.generic_name.toLowerCase() === typedGeneric.toLowerCase())
+                        .map(m => m.brand_name)
+                )];
+            }
+            // If no generic typed yet, show all brands
+            return [...new Set(allMedications.map(m => m.brand_name))];
+        },
         (val, inp) => {
             const match = allMedications.find(m => m.brand_name === val);
-            if (match) genericInput.value = match.generic_name;
+            if (match) {
+                genericInput.value = match.generic_name;
+                const priceInput = tr.querySelector('[name="med_price[]"]');
+                priceInput.value = match.unit_price ? parseFloat(match.unit_price).toFixed(2) : '';
+                calcMedRow(id);
+                syncMedFee();
+            }
         }
     );
+
+    genericInput.addEventListener('input', function() {
+        const typedGeneric = this.value.trim();
+        if (!typedGeneric) {
+            brandInput.value = '';
+            const brandDropdown = brandInput.closest('.med-autocomplete-wrapper').querySelector('.med-dropdown');
+            brandDropdown.classList.remove('show');
+            brandDropdown.innerHTML = '';
+            return;
+        }
+
+        const matchingBrands = [...new Set(
+            allMedications
+                .filter(m => m.generic_name.toLowerCase().startsWith(typedGeneric.toLowerCase()))
+                .map(m => m.brand_name)
+        )];
+
+        if (matchingBrands.length === 1) {
+            brandInput.value = matchingBrands[0];
+            const match = allMedications.find(m => m.brand_name === matchingBrands[0]);
+            if (match) {
+                const priceInput = tr.querySelector('[name="med_price[]"]');
+                priceInput.value = match.unit_price ? parseFloat(match.unit_price).toFixed(2) : '';
+                calcMedRow(id);
+                syncMedFee();
+            }
+        } else {
+            brandInput.value = '';
+            const brandWrapper = brandInput.closest('.med-autocomplete-wrapper');
+            const brandDropdown = brandWrapper.querySelector('.med-dropdown');
+
+            if (!matchingBrands.length) {
+                brandDropdown.classList.remove('show');
+                return;
+            }
+
+            brandDropdown.innerHTML = matchingBrands.map((b, i) =>
+                `<div class="med-dropdown-item" data-value="${b}">${b}</div>`
+            ).join('');
+            brandDropdown.classList.add('show');
+
+            brandDropdown.querySelectorAll('.med-dropdown-item').forEach(el => {
+                el.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    brandInput.value = this.dataset.value;
+                    brandDropdown.classList.remove('show');
+                    const match = allMedications.find(m => m.brand_name === this.dataset.value);
+                    if (match) {
+                        const priceInput = tr.querySelector('[name="med_price[]"]');
+                        priceInput.value = match.unit_price ? parseFloat(match.unit_price).toFixed(2) : '';
+                        calcMedRow(id);
+                        syncMedFee();
+                    }
+                });
+            });
+        }
+    });
+
+    brandInput.addEventListener('input', function() {
+        const typedBrand = this.value.trim();
+        const typedGeneric = genericInput.value.trim();
+
+        if (!typedBrand && typedGeneric) {
+            const matchingBrands = [...new Set(
+                allMedications
+                    .filter(m => m.generic_name.toLowerCase().startsWith(typedGeneric.toLowerCase()))
+                    .map(m => m.brand_name)
+            )];
+
+            const brandWrapper = brandInput.closest('.med-autocomplete-wrapper');
+            const brandDropdown = brandWrapper.querySelector('.med-dropdown');
+
+            if (!matchingBrands.length) {
+                brandDropdown.classList.remove('show');
+                return;
+            }
+
+            brandDropdown.innerHTML = matchingBrands.map(b =>
+                `<div class="med-dropdown-item" data-value="${b}">${b}</div>`
+            ).join('');
+            brandDropdown.classList.add('show');
+
+            brandDropdown.querySelectorAll('.med-dropdown-item').forEach(el => {
+                el.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                    brandInput.value = this.dataset.value;
+                    brandDropdown.classList.remove('show');
+                    const match = allMedications.find(m => m.brand_name === this.dataset.value);
+                    if (match) {
+                        const priceInput = tr.querySelector('[name="med_price[]"]');
+                        priceInput.value = match.unit_price ? parseFloat(match.unit_price).toFixed(2) : '';
+                        calcMedRow(id);
+                        syncMedFee();
+                    }
+                });
+            });
+        }
+    });
 }
 
 function calcMedRow(id) {
