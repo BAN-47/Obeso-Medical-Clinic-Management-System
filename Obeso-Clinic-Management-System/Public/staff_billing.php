@@ -15,6 +15,29 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'staff') {
 require_once "../Config/database.php";
 $db = (new Database())->connect();
 
+/* ================= AJAX: FETCH DOCTOR FROM QUEUE ================= */
+if (isset($_GET['fetch_queue_doctor']) && isset($_GET['queue_id'])) {
+    header('Content-Type: application/json');
+    $qid = (int)$_GET['queue_id'];
+    $stmt = $db->prepare("
+        SELECT c.doc_id, c.checkup_date
+        FROM queue q
+        JOIN checkups c ON c.patient_id = q.patient_id
+        WHERE q.queue_id = ?
+          AND c.is_deleted = 0
+          AND DATE(c.checkup_date) = CURDATE()
+        ORDER BY c.checkup_id DESC
+        LIMIT 1
+    ");
+    $stmt->execute([$qid]);
+    $row = $stmt->fetch(PDO::FETCH_ASSOC);
+    echo json_encode($row && $row['doc_id']
+        ? ['success' => true, 'doc_id' => $row['doc_id'], 'checkup_date' => $row['checkup_date']]
+        : ['success' => false]
+    );
+    exit();
+}
+
 /* ================= STAFF INFO ================= */
 $stmt = $db->prepare("SELECT * FROM staff WHERE staff_id = ?");
 $stmt->execute([$_SESSION['staff_id']]);
@@ -29,6 +52,30 @@ $offset = ($page - 1) * $limit;
 /* ================= SEARCH ================= */
 $search_date = isset($_GET['checkup_date']) && !empty($_GET['checkup_date']) ? $_GET['checkup_date'] : null;
 
+/* ================= CHECK FOR QUEUED BILLING DATA ================= */
+$queuedBillingData = null;
+if (isset($_GET['queue_id'])) {
+    $queueId = (int)$_GET['queue_id'];
+
+    $qstmt = $db->prepare("
+        SELECT q.queue_id, q.queue_number, p.full_name
+        FROM queue q
+        JOIN patients p ON p.patient_id = q.patient_id
+        WHERE q.queue_id = ? AND q.status = 'done'
+    ");
+    $qstmt->execute([$queueId]);
+    $queuedBillingData = $qstmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($queuedBillingData && isset($_GET['doc_id'])) {
+        $dstmt = $db->prepare("SELECT doc_id, doc_fullname FROM doctors WHERE doc_id = ?");
+        $dstmt->execute([(int)$_GET['doc_id']]);
+        $doc = $dstmt->fetch(PDO::FETCH_ASSOC);
+        if ($doc) {
+            $queuedBillingData = array_merge($queuedBillingData, $doc);
+        }
+    }
+}
+
 /* ================= HANDLE BILLING SUBMIT ================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -40,7 +87,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $patient_id = $stmt->fetchColumn();
 
     if (!$patient_id) {
-        die("Patient not found.");
+        header("Location: staff_billing.php?error=patient_not_found");
+        exit();
     }
 
     /* DUPLICATION CHECK */
@@ -56,38 +104,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute([
         $patient_id, $_POST['doc_id'], $_POST['consultation_fee'], $_POST['medication_fee'], $total]);
     if ($stmt->fetchColumn() > 0) {
-        die("Duplicate billing record detected for today.");
+        header("Location: staff_billing.php?error=duplicate");
+        exit();
     }
 
     /* FIND CHECKUP ID BY DATE */
-    $checkup_id = null;
-    if (!empty($_POST['checkup_date'])) {
-        $stmt = $db->prepare("
-            SELECT checkup_id 
-            FROM checkups 
-            WHERE patient_id = ? 
-              AND doc_id = ? 
-              AND checkup_date = ?
-            LIMIT 1
-        ");
-        $stmt->execute([$patient_id, $_POST['doc_id'], $_POST['checkup_date']]);
-        $checkup_id = $stmt->fetchColumn();
-    }
+$checkup_id = null;
+if (!empty($_POST['checkup_date'])) {
+    $stmt = $db->prepare("
+        SELECT checkup_id 
+        FROM checkups 
+        WHERE patient_id = ? 
+        AND checkup_date = ?
+        AND is_deleted = 0
+        LIMIT 1 
+    ");
+    $stmt->execute([$patient_id, $_POST['checkup_date']]);
+    $checkup_id = $stmt->fetchColumn() ?: null;
+}
 
     $stmt = $db->prepare("
         INSERT INTO billing
-        (patient_id, doc_id, checkup_id, billed_at, consultation_fee, medication_fee, total_amount, payment_status, payment_method)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (patient_id, doc_id, checkup_id, billed_at, consultation_fee, medication_fee, total_amount, payment_method)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     ");
     $stmt->execute([
         $patient_id,
         $_POST['doc_id'],
         $checkup_id ?: null,
-        !empty($_POST['billed_at']) ? $_POST['billed_at'] : null,
+        !empty($_POST['checkup_date']) ? $_POST['checkup_date'] . ' ' . date('H:i:s') : date('Y-m-d H:i:s'),
         $_POST['consultation_fee'],
         $_POST['medication_fee'],
         $total,
-        $_POST['payment_status'],
         $_POST['payment_method']
     ]);
 
@@ -101,6 +149,24 @@ $latestPatients = $db->query("SELECT full_name FROM patients ORDER BY patient_id
 
 /* DOCTORS */
 $doctors = $db->query("SELECT doc_id, doc_fullname FROM doctors")->fetchAll(PDO::FETCH_ASSOC);
+
+$doneQueuePatients = $db->query("SELECT q.queue_id, q.queue_number, p.full_name
+    FROM queue q
+    JOIN patients p ON p.patient_id = q.patient_id
+    WHERE q.status = 'done'
+    ORDER BY q.done_at DESC
+    LIMIT 15")->fetchAll(PDO::FETCH_ASSOC);
+
+/* ALREADY BILLED QUEUE IDs TODAY */
+$billedQueueIds = [];
+$billedStmt = $db->query("
+    SELECT DISTINCT q.queue_id 
+    FROM billing b
+    JOIN queue q ON q.patient_id = b.patient_id
+    WHERE DATE(b.billed_at) = CURDATE()
+    AND q.status = 'done'
+");
+$billedQueueIds = $billedStmt->fetchAll(PDO::FETCH_COLUMN);
 
 /* TOTAL BILLS COUNT FOR PAGINATION */
 $countSql = "SELECT COUNT(*) FROM billing b LEFT JOIN checkups c ON b.checkup_id = c.checkup_id";
@@ -153,6 +219,14 @@ $brandNames = $db->query("
     FROM medications
     ORDER BY brand_name
 ")->fetchAll(PDO::FETCH_COLUMN);
+
+$patientCheckups = $db->query("
+    SELECT p.full_name, c.checkup_date
+    FROM checkups c
+    JOIN patients p ON p.patient_id = c.patient_id
+    WHERE c.is_deleted = 0
+    ORDER BY c.checkup_date DESC
+")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>
@@ -169,6 +243,37 @@ $brandNames = $db->query("
 .sb-sidenav .nav-link.active { background-color: #062e6bff !important; color: #fff !important; font-weight: 600; }
 .queue-item { cursor: pointer; transition: background 0.12s; }
 .queue-item:hover { background: #f0f4ff; }
+.med-autocomplete-wrapper { position: relative; }
+.med-dropdown {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0; right: 0;
+  background: #fff;
+  border: 1px solid #c8d6e8;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(6,46,107,0.13);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 9999;
+  display: none;
+}
+.med-dropdown.show { display: block; }
+.med-dropdown-item {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f4ff;
+  color: #222;
+  transition: background 0.1s;
+}
+.med-dropdown-item:last-child { border-bottom: none; }
+.med-dropdown-item:hover, .med-dropdown-item.active {
+  background: #e8eef7;
+  color: #062e6b;
+  font-weight: 500;
+}
+.med-dropdown-item .match-highlight { color: #1a6fd4; font-weight: 700; }
+.billed-item:hover { background: transparent !important; }
 </style>
 </head>
 <body class="sb-nav-fixed">
@@ -182,21 +287,39 @@ $brandNames = $db->query("
 <main class="container-fluid px-4 py-4">
 
 <?php if (isset($_GET['success'])): ?>
-<div class="alert alert-success" style="margin-top: -40px;">Billing record successfully added.</div>
+<div class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2" 
+     style="margin-bottom: 10px; padding: 10px 16px; font-size: 14px;" role="alert">
+    <i class="fa fa-circle-check me-1"></i>
+    Billing record successfully added.
+    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+</div>
+<?php endif; ?>
+
+<?php if (isset($_GET['error'])): ?>
+<div class="alert alert-danger alert-dismissible fade show d-flex align-items-center gap-2"
+     style="margin-bottom: 10px; padding: 10px 16px; font-size: 14px;" role="alert">
+    <i class="fa fa-circle-exclamation me-1"></i>
+    <?php if ($_GET['error'] === 'patient_not_found'): ?>
+        Patient not found. Please make sure the name matches exactly.
+    <?php elseif ($_GET['error'] === 'duplicate'): ?>
+        Duplicate billing record detected for today.
+    <?php endif; ?>
+    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+</div>
 <?php endif; ?>
 
 <!-- ================= QUEUE BUTTON ================= -->
-<div class="d-flex align-items-center gap-3 mb-3 flex-wrap" style="margin-top: -30px;">
+<div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
 
     <button onclick="document.getElementById('queueModal').style.display='flex'"
         style="background-color:#1a6fd4; color:#fff; border:none; border-radius:6px; padding:10px 22px; font-size:14px; font-weight:500; cursor:pointer; letter-spacing:0.2px;">
     Click Patient
     </button>
 
-    <div class="d-flex align-items-center gap-2 px-3 py-2 rounded border bg-white" id="queueBadge" style="display:none !important;">
+    <div class="d-flex align-items-center gap-2 px-3 py-2 rounded border bg-white" id="queueBadge" style="display:<?= $queuedBillingData ? 'flex' : 'none' ?>;">
         <span class="text-muted" style="font-size:13px;">Queue</span>
-        <span class="badge px-2 py-1" style="background:#062e6b; font-size:13px;" id="selectedQueueNum"></span>
-        <span class="fw-semibold" id="selectedQueueName"></span>
+        <span class="badge px-2 py-1" style="background:#062e6b; font-size:13px;" id="selectedQueueNum"><?= $queuedBillingData ? '#' . htmlspecialchars($queuedBillingData['queue_number']) : '' ?></span>
+        <span class="fw-semibold" id="selectedQueueName"><?= $queuedBillingData ? htmlspecialchars($queuedBillingData['full_name']) : '' ?></span>
     </div>
 
 </div>
@@ -211,28 +334,25 @@ $brandNames = $db->query("
                     style="background:none; border:none; font-size:20px; cursor:pointer; color:#6c757d; line-height:1;">&times;</button>
         </div>
 
-        <div style="overflow-y:auto; padding:8px;">
-            <!-- Queue items — replace with PHP foreach output -->
-            <div class="queue-item d-flex align-items-center gap-3 px-3 py-2 rounded" onclick="selectQueuePatient(1, 'Maria Santos')">
-                <span class="badge px-2 py-1" style="background:#e8eef7; color:#062e6b; font-size:13px; min-width:36px;">#1</span>
-                <span>Maria Santos</span>
+        <div style="overflow-y:auto; padding:8px; display:flex; flex-direction:column;">
+            <?php foreach ($doneQueuePatients as $q): 
+                $isBilled = in_array($q['queue_id'], $billedQueueIds);
+            ?>
+            <div class="queue-item d-flex align-items-center gap-3 px-3 py-2 rounded
+                <?= $isBilled ? 'billed-item' : '' ?>"
+                <?= !$isBilled ? "onclick=\"selectQueuePatient({$q['queue_id']}, '{$q['queue_number']}', '" . htmlspecialchars($q['full_name'], ENT_QUOTES) . "')\"" : '' ?>
+                style="<?= $isBilled ? 'opacity:0.45; cursor:not-allowed; order:1;' : 'order:0;' ?>">
+
+                <span class="badge px-2 py-1" 
+                    style="background:<?= $isBilled ? '#ccc' : '#e8eef7' ?>; color:<?= $isBilled ? '#888' : '#062e6b' ?>; font-size:13px; min-width:36px;">
+                    #<?= htmlspecialchars($q['queue_number']) ?>
+                </span>
+                <span><?= htmlspecialchars($q['full_name']) ?></span>
+                <?php if ($isBilled): ?>
+                    <span class="ms-auto badge" style="background:#d4edda; color:#155724; font-size:11px;">Billed</span>
+                <?php endif; ?>
             </div>
-            <div class="queue-item d-flex align-items-center gap-3 px-3 py-2 rounded" onclick="selectQueuePatient(2, 'Juan dela Cruz')">
-                <span class="badge px-2 py-1" style="background:#e8eef7; color:#062e6b; font-size:13px; min-width:36px;">#2</span>
-                <span>Juan dela Cruz</span>
-            </div>
-            <div class="queue-item d-flex align-items-center gap-3 px-3 py-2 rounded" onclick="selectQueuePatient(3, 'Ana Reyes')">
-                <span class="badge px-2 py-1" style="background:#e8eef7; color:#062e6b; font-size:13px; min-width:36px;">#3</span>
-                <span>Ana Reyes</span>
-            </div>
-            <div class="queue-item d-flex align-items-center gap-3 px-3 py-2 rounded" onclick="selectQueuePatient(4, 'Pedro Manalo')">
-                <span class="badge px-2 py-1" style="background:#e8eef7; color:#062e6b; font-size:13px; min-width:36px;">#4</span>
-                <span>Pedro Manalo</span>
-            </div>
-            <div class="queue-item d-flex align-items-center gap-3 px-3 py-2 rounded" onclick="selectQueuePatient(5, 'Liza Bautista')">
-                <span class="badge px-2 py-1" style="background:#e8eef7; color:#062e6b; font-size:13px; min-width:36px;">#5</span>
-                <span>Liza Bautista</span>
-            </div>
+            <?php endforeach; ?>
         </div>
 
     </div>
@@ -242,10 +362,21 @@ $brandNames = $db->query("
 <div class="card shadow mb-4" style="margin-top: 20px;">
 <div class="card-body">
 <h5 class="text-primary mb-3"><i class="fa fa-file-invoice"></i> Billing Form</h5>
+
+<?php if ($queuedBillingData): ?>
+<div class="alert alert-info alert-dismissible fade show d-flex align-items-center gap-2" 
+     style="margin-bottom: 15px; padding: 10px 16px; font-size: 14px;" role="alert">
+    <i class="fa fa-check-circle me-1"></i>
+    Form auto-filled from completed checkup (Queue #<?= htmlspecialchars($queuedBillingData['queue_id']) ?>)
+    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+</div>
+<?php endif; ?>
+
 <form method="POST" class="row g-3">
 <div class="col-md-4">
 <label class="form-label">Patient</label>
-<input type="text" name="patient_name" class="form-control" list="patients" required>
+<input type="text" name="patient_name" id="patientInput" class="form-control" list="patients" required
+       value="<?= $queuedBillingData ? htmlspecialchars($queuedBillingData['full_name']) : '' ?>">
 <datalist id="patients">
 <?php foreach ($latestPatients as $p): ?>
 <option value="<?= htmlspecialchars($p['full_name']) ?>">
@@ -259,14 +390,16 @@ $brandNames = $db->query("
 <select name="doc_id" class="form-select" required>
 <option value="">Select Doctor</option>
 <?php foreach ($doctors as $d): ?>
-<option value="<?= $d['doc_id'] ?>"><?= htmlspecialchars($d['doc_fullname']) ?></option>
+<option value="<?= $d['doc_id'] ?>" <?= $queuedBillingData && $d['doc_id'] === (int)$queuedBillingData['doc_id'] ? 'selected' : '' ?>><?= htmlspecialchars($d['doc_fullname']) ?></option>
 <?php endforeach; ?>
 </select>
 </div>
 
+<input type="hidden" name="selected_queue_id" id="selectedQueueId" value="<?= $queuedBillingData ? htmlspecialchars($queuedBillingData['queue_id']) : '' ?>">
+
 <div class="col-md-4">
 <label class="form-label">Checkup Date (Optional)</label>
-<input type="date" name="checkup_date" class="form-control">
+<input type="date" name="checkup_date" class="form-control" value="<?= $queuedBillingData ? date('Y-m-d') : '' ?>">
 </div>
 
 <div class="col-md-3">
@@ -274,20 +407,7 @@ $brandNames = $db->query("
 <input type="number" step="0.01" name="consultation_fee" class="form-control" value="300.00" readonly required>
 </div>
 
-<div class="col-md-3">
-<label class="form-label">Medication Fee</label>
-<input type="number" step="0.01" name="medication_fee" value="0" class="form-control">
-</div>
-
-<div class="col-md-3">
-<label class="form-label">Payment Status</label>
-<select name="payment_status" class="form-select">
-    <option value="">Select Status</option>
-    <option>Unpaid</option>
-    <option>Partial</option>
-    <option>Paid</option>
-</select>
-</div>
+<input type="hidden" name="medication_fee" value="0">
 
 <div class="col-md-3">
 <label class="form-label">Payment Method</label>
@@ -319,18 +439,6 @@ $brandNames = $db->query("
         <tbody id="medBody"></tbody>
       </table>
 
-      <datalist id="genericList">
-        <?php foreach ($medications as $med): ?>
-            <option value="<?= htmlspecialchars($med['generic_name']) ?>">
-        <?php endforeach; ?>
-        </datalist>
-
-        <datalist id="brandList">
-        <?php foreach ($medications as $med): ?>
-            <option value="<?= htmlspecialchars($med['brand_name']) ?>">
-        <?php endforeach; ?>
-        </datalist>
-
       <button type="button" class="btn btn-sm" onclick="addMedRow()"
               style="background:#062e6b; color:#fff; border:none; border-radius:6px; font-size:13px;">
         <i class="fa fa-plus me-1"></i> Add Medication
@@ -351,7 +459,6 @@ $brandNames = $db->query("
           <span id="rcptGrandTotal">₱0.00</span>
         </div>
       </div>
-
     </div>
   </div>
 </div>
@@ -389,7 +496,6 @@ $brandNames = $db->query("
 <th>Doctor</th>
 <th>Checkup Date</th>
 <th>Total</th>
-<th>Status</th>
 <th>Method</th>
 <th>Date Billed</th>
 </tr>
@@ -401,12 +507,6 @@ $brandNames = $db->query("
 <td><?= htmlspecialchars($b['doc_fullname']) ?></td>
 <td><?= $b['checkup_date'] ? date('M d, Y', strtotime($b['checkup_date'])) : '—' ?></td>
 <td>₱<?= number_format($b['total_amount'],2) ?></td>
-<td>
-<span class="badge bg-<?= 
-$b['payment_status'] === 'Paid' ? 'success' :
-($b['payment_status'] === 'Partial' ? 'warning' : 'danger')
-?>"><?= $b['payment_status'] ?></span>
-</td>
 <td><?= htmlspecialchars($b['payment_method']) ?></td>
 <td><?= date('M d, Y', strtotime($b['billed_at'])) ?></td>
 </tr>
@@ -441,87 +541,195 @@ $b['payment_status'] === 'Paid' ? 'success' :
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-function selectQueuePatient(num, name) {
-    document.getElementById('selectedQueueNum').textContent = '#' + num;
+// ── Medication data from PHP ──────────────────────────────────────────────
+const allMedications = <?php echo json_encode($medications); ?>;
+
+// ── Queue ─────────────────────────────────────────────────────────────────
+function selectQueuePatient(queueId, queueNumber, name) {
+    document.getElementById('selectedQueueNum').textContent = '#' + queueNumber;
     document.getElementById('selectedQueueName').textContent = name;
     document.getElementById('queueBadge').style.display = 'flex';
     document.getElementById('queueModal').style.display = 'none';
     document.querySelector('input[name="patient_name"]').value = name;
+    document.getElementById('selectedQueueId').value = queueId;
+
+    // Reset fields first
+    document.querySelector('select[name="doc_id"]').value = '';
+    document.querySelector('input[name="checkup_date"]').value = '';
+
+    fetch('staff_billing.php?fetch_queue_doctor=1&queue_id=' + encodeURIComponent(queueId), { credentials: 'same-origin' })
+    .then(r => r.json())
+    .then(d => {
+        if (d.doc_id) {
+            document.querySelector('select[name="doc_id"]').value = d.doc_id;
+        }
+        document.querySelector('input[name="checkup_date"]').value = d.checkup_date
+            ? d.checkup_date.slice(0, 10)
+            : new Date().toISOString().slice(0, 10);
+    });
 }
 
-// Close modal when clicking the backdrop
 document.getElementById('queueModal').addEventListener('click', function(e) {
     if (e.target === this) this.style.display = 'none';
 });
 
+// ── Autocomplete helper ───────────────────────────────────────────────────
+function buildAutocomplete(input, getList, onSelect) {
+    const wrapper = input.closest('.med-autocomplete-wrapper');
+    const dropdown = wrapper.querySelector('.med-dropdown');
+    let activeIdx = -1;
+
+    function highlight(text, query) {
+        const idx = text.toLowerCase().indexOf(query.toLowerCase());
+        if (idx === -1) return text;
+        return text.slice(0, idx)
+            + '<span class="match-highlight">' + text.slice(idx, idx + query.length) + '</span>'
+            + text.slice(idx + query.length);
+    }
+
+    function showDropdown(items, query) {
+        if (!items.length) { dropdown.classList.remove('show'); return; }
+        dropdown.innerHTML = items.map((item, i) =>
+            `<div class="med-dropdown-item" data-idx="${i}" data-value="${item}">${highlight(item, query)}</div>`
+        ).join('');
+        dropdown.classList.add('show');
+        activeIdx = -1;
+
+        dropdown.querySelectorAll('.med-dropdown-item').forEach(el => {
+            el.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                input.value = this.dataset.value;
+                dropdown.classList.remove('show');
+                onSelect && onSelect(this.dataset.value, input);
+            });
+        });
+    }
+
+    input.addEventListener('input', function() {
+        const q = this.value.trim();
+        if (!q) { dropdown.classList.remove('show'); return; }
+        const matches = getList().filter(v => v.toLowerCase().startsWith(q.toLowerCase())).slice(0, 10);
+        showDropdown(matches, q);
+    });
+
+    input.addEventListener('keydown', function(e) {
+        const items = dropdown.querySelectorAll('.med-dropdown-item');
+        if (!items.length) return;
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            activeIdx = Math.min(activeIdx + 1, items.length - 1);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            activeIdx = Math.max(activeIdx - 1, 0);
+        } else if (e.key === 'Enter' && activeIdx >= 0) {
+            e.preventDefault();
+            input.value = items[activeIdx].dataset.value;
+            dropdown.classList.remove('show');
+            onSelect && onSelect(input.value, input);
+            return;
+        } else if (e.key === 'Escape') {
+            dropdown.classList.remove('show'); return;
+        }
+        items.forEach((el, i) => el.classList.toggle('active', i === activeIdx));
+        if (activeIdx >= 0) items[activeIdx].scrollIntoView({ block: 'nearest' });
+    });
+
+    input.addEventListener('blur', function() {
+        setTimeout(() => dropdown.classList.remove('show'), 150);
+    });
+
+    // Do NOT open on focus — only open when user types
+}
+
+// ── Medication rows ───────────────────────────────────────────────────────
 let medRowId = 0;
 
 function addMedRow() {
-  medRowId++;
-  const id = medRowId;
-  const tr = document.createElement('tr');
-  tr.id = 'med-row-' + id;
-  tr.innerHTML = `
-    <td>
-        <select class="form-select form-select-sm generic-select" name="med_generic[]">
-            <option value=""></option>
-            <?php foreach($genericNames as $g): ?>
-            <option value="<?= htmlspecialchars($g) ?>">
-                <?= htmlspecialchars($g) ?>
-            </option>
-            <?php endforeach; ?>
-        </select>
-    </td>
+    medRowId++;
+    const id = medRowId;
+    const tr = document.createElement('tr');
+    tr.id = 'med-row-' + id;
+    tr.innerHTML = `
+        <td>
+            <div class="med-autocomplete-wrapper">
+                <input type="text" class="form-control form-control-sm" name="med_generic[]"
+                       placeholder="Type generic name..." autocomplete="off">
+                <div class="med-dropdown"></div>
+            </div>
+        </td>
+        <td>
+            <div class="med-autocomplete-wrapper">
+                <input type="text" class="form-control form-control-sm" name="med_brand[]"
+                       placeholder="Type brand name..." autocomplete="off">
+                <div class="med-dropdown"></div>
+            </div>
+        </td>
+        <td><input type="number" class="form-control form-control-sm" name="med_qty[]" value="1" min="1"
+                  oninput="calcMedRow(${id}); syncMedFee();"></td>
+        <td><input type="number" class="form-control form-control-sm" name="med_price[]" placeholder="0.00" step="0.01" min="0"
+                  oninput="calcMedRow(${id}); syncMedFee();"></td>
+        <td class="text-end fw-semibold text-primary" id="med-sub-${id}">₱0.00</td>
+        <td><button type="button" class="btn btn-sm btn-link text-danger p-0"
+                    onclick="removeMedRow(${id})"><i class="fa fa-times"></i></button></td>
+    `;
+    document.getElementById('medBody').appendChild(tr);
 
-    <td>
-        <select class="form-select form-select-sm brand-select" name="med_brand[]">
-            <option value=""></option>
-            <?php foreach($brandNames as $b): ?>
-            <option value="<?= htmlspecialchars($b) ?>">
-                <?= htmlspecialchars($b) ?>
-            </option>
-            <?php endforeach; ?>
-        </select>
-    </td>
-    <td><input type="number" class="form-control form-control-sm" name="med_qty[]" value="1" min="1"
-              oninput="calcMedRow(${id}); syncMedFee();"></td>
-    <td><input type="number" class="form-control form-control-sm" name="med_price[]" placeholder="0.00" step="0.01" min="0"
-              oninput="calcMedRow(${id}); syncMedFee();"></td>
-    <td class="text-end fw-semibold text-primary" id="med-sub-${id}">₱0.00</td>
-    <td><button type="button" class="btn btn-sm btn-link text-danger p-0"
-                onclick="removeMedRow(${id})"><i class="fa fa-times"></i></button></td>
-  `;
-  document.getElementById('medBody').appendChild(tr);
+    const genericInput = tr.querySelector('[name="med_generic[]"]');
+    const brandInput   = tr.querySelector('[name="med_brand[]"]');
 
+    // When a generic is picked, auto-fill the matching brand
+    buildAutocomplete(genericInput,
+        () => [...new Set(allMedications.map(m => m.generic_name))],
+        (val, inp) => {
+            const match = allMedications.find(m => m.generic_name === val);
+            if (match) brandInput.value = match.brand_name;
+        }
+    );
+
+    buildAutocomplete(brandInput,
+        () => [...new Set(allMedications.map(m => m.brand_name))],
+        (val, inp) => {
+            const match = allMedications.find(m => m.brand_name === val);
+            if (match) genericInput.value = match.generic_name;
+        }
+    );
 }
 
 function calcMedRow(id) {
-  const tr = document.getElementById('med-row-' + id);
-  const qty   = parseFloat(tr.querySelector('[name="med_qty[]"]').value)   || 0;
-  const price = parseFloat(tr.querySelector('[name="med_price[]"]').value) || 0;
-  document.getElementById('med-sub-' + id).textContent = '₱' + (qty * price).toFixed(2);
+    const tr = document.getElementById('med-row-' + id);
+    const qty   = parseFloat(tr.querySelector('[name="med_qty[]"]').value)   || 0;
+    const price = parseFloat(tr.querySelector('[name="med_price[]"]').value) || 0;
+    document.getElementById('med-sub-' + id).textContent = '₱' + (qty * price).toFixed(2);
 }
 
 function removeMedRow(id) {
-  const tr = document.getElementById('med-row-' + id);
-  if (tr) tr.remove();
-  syncMedFee();
+    const tr = document.getElementById('med-row-' + id);
+    if (tr) tr.remove();
+    syncMedFee();
 }
 
+const patientCheckups = <?php echo json_encode($patientCheckups); ?>;
+
+document.getElementById('patientInput').addEventListener('change', function() {
+    const name = this.value.trim();
+    const match = patientCheckups.find(r => r.full_name === name);
+    if (match) {
+        document.querySelector('input[name="checkup_date"]').value = match.checkup_date;
+    }
+});
+
 function syncMedFee() {
-  let medTotal = 0;
-  document.querySelectorAll('#medBody tr').forEach(tr => {
-    const qty   = parseFloat(tr.querySelector('[name="med_qty[]"]')?.value)   || 0;
-    const price = parseFloat(tr.querySelector('[name="med_price[]"]')?.value) || 0;
-    medTotal += qty * price;
-  });
-
-  document.querySelector('input[name="medication_fee"]').value = medTotal.toFixed(2);
-
-  const consultFee = parseFloat(document.querySelector('input[name="consultation_fee"]')?.value) || 300;
-  document.getElementById('rcptConsult').textContent    = '₱' + consultFee.toFixed(2);
-  document.getElementById('rcptMedFee').textContent     = '₱' + medTotal.toFixed(2);
-  document.getElementById('rcptGrandTotal').textContent = '₱' + (consultFee + medTotal).toFixed(2);
+    let medTotal = 0;
+    document.querySelectorAll('#medBody tr').forEach(tr => {
+        const qty   = parseFloat(tr.querySelector('[name="med_qty[]"]')?.value)   || 0;
+        const price = parseFloat(tr.querySelector('[name="med_price[]"]')?.value) || 0;
+        medTotal += qty * price;
+    });
+    document.querySelector('input[name="medication_fee"]').value = medTotal.toFixed(2);
+    const consultFee = parseFloat(document.querySelector('input[name="consultation_fee"]')?.value) || 300;
+    document.getElementById('rcptConsult').textContent    = '₱' + consultFee.toFixed(2);
+    document.getElementById('rcptMedFee').textContent     = '₱' + medTotal.toFixed(2);
+    document.getElementById('rcptGrandTotal').textContent = '₱' + (consultFee + medTotal).toFixed(2);
 }
 
 document.querySelector('input[name="consultation_fee"]')?.addEventListener('input', syncMedFee);

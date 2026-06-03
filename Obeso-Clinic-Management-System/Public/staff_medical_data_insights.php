@@ -92,16 +92,6 @@ foreach ($clusterQuery as $row) {
     elseif ($risk == 1) $clusters['Moderate']++;
     else $clusters['Low']++;
 }
-
-/* ================= MEDICATION USAGE ================= */
-$medications = $db->query("
-    SELECT m.generic_name, COUNT(*) AS total
-    FROM prescribed_medications pm
-    JOIN medications m ON m.medication_id = pm.medication_id
-    GROUP BY pm.medication_id
-    ORDER BY total DESC
-    LIMIT 10
-")->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
 <!DOCTYPE html>
@@ -206,21 +196,7 @@ $medications = $db->query("
 <!-- AI prediction -->
 <?php require_once "../Public/ai_prediction.php"; ?>
 
-<!-- MEDICATION -->
-<div class="card shadow mb-4">
-<div class="card-body">
-<h5>💊 Medication Usage Mining</h5>
-<div class="chart-container">
-<canvas id="medChart"></canvas>
-</div>
-</div>
-</div>
-
 </div><!-- END CAPTURE -->
-
-<button onclick="saveDashboard()" class="btn btn-success">
-<i class="fa fa-camera"></i> Save Dashboard as Image
-</button>
 
 </main>
 <?php include "../Includes/footer.html"; ?>
@@ -239,27 +215,6 @@ new Chart(document.getElementById('clusterChart'), {
     },
     options:{ maintainAspectRatio:false }
 });
-
-new Chart(document.getElementById('medChart'), {
-    type:'pie',
-    data:{
-        labels:<?= json_encode(array_column($medications,'generic_name')) ?>,
-        datasets:[{ data:<?= json_encode(array_column($medications,'total')) ?> }]
-    },
-    options:{ maintainAspectRatio:false }
-});
-
-function saveDashboard() {
-    html2canvas(document.getElementById("dashboardCapture"), {
-        scale: 2,
-        useCORS: true
-    }).then(canvas => {
-        const link = document.createElement("a");
-        link.download = "medical_dashboard.png";
-        link.href = canvas.toDataURL("image/png");
-        link.click();
-    });
-}
 </script>
 
 </body>
