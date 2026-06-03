@@ -10,6 +10,19 @@ logger = logging.getLogger(__name__)
 
 CSV_PATH = os.path.join(os.path.dirname(__file__), 'disease_data.csv')
 
+
+PLACEHOLDER_PATTERNS = ['test', 'dummy', 'placeholder', 'n/a', 'na', 'dev', 'sample', 'unknown', 'zzz']
+
+
+def is_placeholder_text(s):
+    if not s:
+        return False
+    t = str(s).strip().lower()
+    for p in PLACEHOLDER_PATTERNS:
+        if p in t:
+            return True
+    return False
+
 # ── The 8 symptoms that exist in the CSV ──
 CSV_FEATURE_COLUMNS = [
     'fever', 'cough', 'headache', 'fatigue',
@@ -290,6 +303,38 @@ def load_training_data_from_db(conn):
             ), axis=1
         )
 
+    # ------------------
+    # Filter out placeholder / mock / corrupted rows
+    # ------------------
+    def valid_row(r):
+        diag = str(r.get('diagnosis', '')).strip()
+        # exclude obvious placeholders
+        if is_placeholder_text(diag):
+            return False
+        # exclude rows with no complaint and no vitals
+        cc = str(r.get('chief_complaint', '')).strip()
+        hpi = str(r.get('history_present_illness', '')).strip()
+        temp = 0
+        try:
+            temp = float(r.get('temperature') or 0)
+        except:
+            temp = 0
+        bp = str(r.get('blood_pressure') or '').strip()
+        if not diag:
+            return False
+        if not cc and not hpi and temp == 0 and bp in ('', '0', '0/0'):
+            return False
+        # exclude developer placeholders in text
+        if is_placeholder_text(cc) or is_placeholder_text(hpi):
+            return False
+        return True
+
+    before = len(df)
+    df = df[df.apply(valid_row, axis=1)].reset_index(drop=True)
+    after = len(df)
+    if after < before:
+        logger.info(f"Filtered {before-after} placeholder/invalid DB rows from training data")
+
     # Per-row historical features
     history_rows = []
     for _, row in df.iterrows():
@@ -339,6 +384,17 @@ def train_model():
                     csv_X[col] = 0
             csv_X = csv_X[db_cols]
 
+            # Downsample CSV baseline to avoid it overpowering DB patterns
+            try:
+                max_csv_rows = max(int(len(db_X) * 2), 50)
+                if len(csv_X) > max_csv_rows:
+                    csv_X = csv_X.sample(n=max_csv_rows, random_state=42).reset_index(drop=True)
+                    # adjust csv_y to same index range if possible
+                    if len(csv_y) >= max_csv_rows:
+                        csv_y = csv_y.sample(n=max_csv_rows, random_state=42).reset_index(drop=True)
+            except Exception:
+                pass
+
             X = pd.concat([csv_X, db_X[db_cols]], ignore_index=True)
             y = pd.concat([csv_y, db_y], ignore_index=True)
             ACTIVE_FEATURE_COLUMNS = db_cols
@@ -354,6 +410,25 @@ def train_model():
 
     class_counts = y.value_counts()
     min_class_count = int(class_counts.min())
+
+    # Reduce skew from extremely frequent classes by capping per-class samples
+    try:
+        cap = int(class_counts.median() * 3) if not class_counts.empty else None
+        if cap and cap > 0:
+            frames = []
+            df_all = X.copy()
+            df_all['__target__'] = y.values
+            for cls, cnt in class_counts.items():
+                cls_rows = df_all[df_all['__target__'] == cls]
+                if len(cls_rows) > cap:
+                    cls_rows = cls_rows.sample(n=cap, random_state=42)
+                frames.append(cls_rows)
+            balanced = pd.concat(frames, ignore_index=True)
+            y = balanced['__target__']
+            X = balanced.drop(columns=['__target__'])
+            logger.info(f"Applied per-class cap={cap}, resulting rows={len(X)}")
+    except Exception as e:
+        logger.warning(f"Per-class capping failed: {e}")
 
     base = RandomForestClassifier(
         n_estimators=300,
