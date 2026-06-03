@@ -72,8 +72,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
         if ($action === 'mark_done') {
             $queueId = (int)$_POST['queue_id'];
+            
+            // Fetch patient and queue info for billing
+            $qstmt = $db->prepare("
+                SELECT q.queue_id, q.patient_id, p.full_name
+                FROM queue q
+                JOIN patients p ON p.patient_id = q.patient_id
+                WHERE q.queue_id = ?
+            ");
+            $qstmt->execute([$queueId]);
+            $queueInfo = $qstmt->fetch(PDO::FETCH_ASSOC);
+            
+            // Update queue status
             $db->prepare("UPDATE queue SET status = 'done', done_at = NOW() WHERE queue_id = ?")
-                ->execute([$queueId]);
+               ->execute([$queueId]);
             echo json_encode(['success' => true]);
             exit();
         }
@@ -719,31 +731,12 @@ $counts = $countStmt->fetch(PDO::FETCH_ASSOC);
             })
         }
 
-        function callNext() {
-            postAction('call_next').then(d => {
-                if (!d.success) alert(d.error || 'No patients waiting.');
-                fetchQueue();
-            });
-        }
-
-        function callSpecific(id) {
-            postAction('call_specific', {
-                queue_id: id
-            }).then(() => fetchQueue());
-        }
-
-        function markDone(id) {
-            postAction('mark_done', {
-                queue_id: id
-            }).then(() => fetchQueue());
-        }
-
-        function togglePriority(id, cur) {
-            postAction('toggle_priority', {
-                queue_id: id,
-                priority: cur
-            }).then(() => fetchQueue());
-        }
+function callNext() {
+    postAction('call_next').then(d => { if (!d.success) alert(d.error || 'No patients waiting.'); fetchQueue(); });
+}
+function callSpecific(id) { postAction('call_specific', { queue_id: id }).then(() => fetchQueue()); }
+function markDone(id)     { postAction('mark_done',     { queue_id: id }).then(() => fetchQueue()); }
+function togglePriority(id, cur) { postAction('toggle_priority', { queue_id: id, priority: cur }).then(() => fetchQueue()); }
 
         function minutesAgo(dateStr) {
             if (!dateStr) return '—';
