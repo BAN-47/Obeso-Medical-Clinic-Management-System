@@ -1,10 +1,11 @@
 <?php
      class Database {
-          private $host = "localhost";
-          private $dbname = "obeso_clinic_database";
+         private $host = "sql105.infinityfree.com";
+          private $dbname = "if0_40936666_obeso_clinic_database";
           private $username = "root";
-          private $password = "";
+          private $password = "HlUf9MHo1WBXMk";
           private $conn;
+
 
           public function connect() {
                if ($this->conn == null) {
