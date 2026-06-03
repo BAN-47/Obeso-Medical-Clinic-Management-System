@@ -71,16 +71,66 @@ def predict():
 
         input_data, features = build_input_features(data, patient_history)
 
+        # Clinical evidence extraction
+        clinician_diag = (data.get('diagnosis') or '').strip() or None
+        evidence_text = ' '.join([str(data.get('chief_complaint', '')), str(data.get('history_present_illness', ''))])
+        evidence_symptoms = model_util.extract_evidence_symptoms(evidence_text)
+        evidence_vitals = {
+            'temperature': data.get('temperature'),
+            'blood_pressure': data.get('blood_pressure'),
+            'heart_rate': data.get('heart_rate')
+        }
+
         prediction    = model_util.model.predict(input_data)[0]
         probabilities = model_util.model.predict_proba(input_data)[0]
         classes       = model_util.model.classes_
 
-        scores = {
-            d: round(float(p) * 100, 1)
-            for d, p in zip(classes, probabilities)
-        }
-        top3       = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
-        confidence = scores.get(prediction, 0.0)
+        scores = {d: float(p) for d, p in zip(classes, probabilities)}
+
+        # Build supporting evidence list
+        supporting_evidence = []
+        for s in sorted(evidence_symptoms):
+            supporting_evidence.append(s)
+        if clinician_diag:
+            supporting_evidence.append(f"clinician diagnosis: {clinician_diag}")
+
+        # Filter and prioritize predictions by clinical relevance
+        relevant = []
+        for d in classes:
+            if model_util.disease_supported_by_evidence(d, evidence_symptoms, evidence_vitals, clinician_diag):
+                relevant.append(d)
+
+        filtered_scores = {}
+        if relevant:
+            # Keep only clinically related diseases
+            for d in relevant:
+                filtered_scores[d] = round(scores.get(d, 0.0) * 100, 1)
+        else:
+            # No clear related diseases -> fall back to model top scorers but mark low confidence for unrelated ones
+            for d, p in scores.items():
+                filtered_scores[d] = round(p * 100, 1)
+
+        # Boost clinician diagnosis if present and supported
+        if clinician_diag:
+            # find exact match in classes (case-insensitive)
+            match = None
+            for c in classes:
+                if str(c).strip().lower() == clinician_diag.strip().lower():
+                    match = c
+                    break
+            if match:
+                if model_util.disease_supported_by_evidence(match, evidence_symptoms, evidence_vitals, clinician_diag):
+                    filtered_scores[match] = max(filtered_scores.get(match, 0.0), 92.0)
+                else:
+                    # clinical diagnosis contradicts evidence — keep but low
+                    filtered_scores[match] = max(filtered_scores.get(match, 0.0), 5.0)
+
+        # Sort and pick top3
+        top3 = sorted(filtered_scores.items(), key=lambda x: x[1], reverse=True)[:3]
+
+        # Determine current diagnosis (prefer clinician if present)
+        current_diagnosis = clinician_diag if clinician_diag else (top3[0][0] if top3 else str(prediction))
+        confidence = next((c for d, c in top3 if str(d) == str(current_diagnosis)), round(scores.get(prediction, 0.0) * 100, 1))
 
         followup = get_followup_recommendation(prediction, {
             'temperature':   float(data.get('temperature', 0) or 0),
@@ -92,10 +142,18 @@ def predict():
             'heart_rate': int(data.get('heart_rate', 0) or 0)
         })
 
+        # Build related_future_conditions list (exclude current_diagnosis)
+        related_future_conditions = []
+        for d, c in top3:
+            if str(d).strip().lower() != (str(current_diagnosis).strip().lower() if current_diagnosis else ''):
+                related_future_conditions.append({"condition": d, "probability": c})
+
         return jsonify({
-            "disease":      prediction,
-            "confidence":   confidence,
-            "top3":         [{"disease": d, "confidence": c} for d, c in top3],
+            "current_diagnosis": str(current_diagnosis),
+            "confidence":        confidence,
+            "supporting_evidence": supporting_evidence,
+            "related_future_conditions": related_future_conditions,
+            "top3":              [{"disease": d, "confidence": c} for d, c in top3],
             "followup": {
                 "urgent":  followup.get('urgent', False),
                 "days":    followup.get('days', 7),
