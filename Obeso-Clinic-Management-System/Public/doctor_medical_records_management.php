@@ -434,7 +434,7 @@ if (!empty($patient)) {
                                                     <div class="col-md-8"><label class="form-label text-muted small">Diagnosis</label><input name="diagnosis" class="form-control" placeholder="Diagnosis"></div>
                                                 </div>
                                                 <div class="mt-3">
-                                                    <label class="form-label text-muted small">SOAP Notes (HPI / O / A)</label>
+                                                    <label class="form-label text-muted small">SOAP Notes (HPI / O / A / P)</label>
                                                     <textarea
                                                         id="soap_input"
                                                         name="history_present_illness"

@@ -4,6 +4,7 @@ require_once '../vendor/autoload.php';
 require_once '../Config/database.php';
 require_once '../Class/patient_data.php';
 require_once '../Class/checkups.php';
+require_once '../Class/prescribed_medication.php';
 
 use Dompdf\Dompdf;
 
@@ -11,6 +12,7 @@ $db = new Database();
 $conn = $db->connect();
 $patientObj = new Patient($conn);
 $checkupObj = new Checkup($conn);
+$medObj = new PrescribedMedication($conn);
 
 $checkup_id = $_GET['checkup_id'] ?? 1;
 $checkup = $checkupObj->get($checkup_id);
@@ -21,18 +23,37 @@ if (!$checkup) {
 
 $patient = $patientObj->get($checkup['patient_id']);
 if (!$patient) {
-    $patient = ['full_name' => 'Unknown Patient', 'age' => 'N/A', 'sex' => '', 'address' => ''];
+    $patient = ['full_name' => '', 'age' => '', 'sex' => '', 'address' => ''];
 }
 
 $dompdf = new Dompdf();
 
-$patient_name    = htmlspecialchars($patient['full_name'] ?? 'Unknown Patient', ENT_QUOTES);
-$patient_age     = htmlspecialchars($patient['age']       ?? 'N/A',             ENT_QUOTES);
-$patient_sex     = htmlspecialchars($patient['sex']       ?? '',                 ENT_QUOTES);
-$patient_address = htmlspecialchars($patient['address']   ?? '',                 ENT_QUOTES);
+$patient_name    = htmlspecialchars($patient['full_name'] ?? '', ENT_QUOTES);
+$patient_age     = htmlspecialchars($patient['age']       ?? '', ENT_QUOTES);
+$patient_sex     = htmlspecialchars($patient['sex']       ?? '', ENT_QUOTES);
+$patient_address = htmlspecialchars($patient['address']   ?? '', ENT_QUOTES);
 $today           = !empty($checkup['checkup_date'])
                        ? date('F j, Y', strtotime($checkup['checkup_date']))
                        : date('F j, Y');
+
+$soap_notes = htmlspecialchars($checkup['history_present_illness'] ?? '', ENT_QUOTES);
+$diagnosis  = htmlspecialchars($checkup['diagnosis']  ?? '', ENT_QUOTES);
+
+// Parse SOAP lines — split by newline and wrap each label in bold
+$soap_html = '';
+if (!empty($soap_notes)) {
+    $lines = explode("\n", $soap_notes);
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '') {
+            $soap_html .= '<div style="height:6px;"></div>';
+            continue;
+        }
+        // Bold the label prefix (HPI:, O:, A:, P:, S:, etc.)
+        $line = preg_replace('/^([A-Z]+:)/', '<strong>$1</strong>', htmlspecialchars($line, ENT_QUOTES));
+        $soap_html .= "<div style='margin-bottom:4px;'>{$line}</div>";
+    }
+}
 
 // Logo — embedded as base64 (requires GD enabled in php.ini)
 $logo_html = '';
@@ -61,7 +82,7 @@ $html = <<<HTML
         font-family: Arial, sans-serif;
         font-size: 13px;
         background: #fff;
-        color: #111;
+        color: #000;
     }
 
     .page {
@@ -70,12 +91,11 @@ $html = <<<HTML
         min-height: 1122px;
     }
 
-    /* ══ HEADER: logo left, text left-aligned beside it ══ */
+    /* ══ HEADER ══ */
     .header {
-        width: 100%;
-        border-collapse: collapse;
-        padding: 18px 30px 14px 20px;
         display: table;
+        width: 100%;
+        padding: 18px 30px 14px 20px;
     }
     .header-logo {
         display: table-cell;
@@ -91,54 +111,58 @@ $html = <<<HTML
     .clinic-name {
         font-size: 28px;
         font-weight: bold;
-        color: #1a1a1a;
+        color: #000;
         line-height: 1.1;
         letter-spacing: 0.3px;
     }
     .clinic-sub {
         font-size: 16px;
         font-weight: bold;
-        color: #2c6880;
+        color: #000;
         margin-top: 4px;
     }
     .clinic-addr {
         font-size: 14px;
-        color: #333;
+        color: #000;
         margin-top: 3px;
     }
 
     /* ══ DOUBLE RULE ══ */
-    .rule-wrap { margin: 0 0; }
-    .rule-top  { border-top: 5px solid #111; }
-    .rule-bot  { border-top: 2px solid #111; margin-top: 5px; }
+    .rule-wrap { margin: 0; }
+    .rule-top  { border-top: 5px solid #000; }
+    .rule-bot  { border-top: 2px solid #000; margin-top: 5px; }
 
     /* ══ PATIENT FIELDS ══ */
     .fields {
-        padding: 20px 30px 0 20px;
+        padding: 22px 30px 0 20px;
     }
-    .fields table {
+    .field-row {
         width: 100%;
         border-collapse: collapse;
-        margin-bottom: 10px;
+        margin-bottom: 12px;
     }
-    .fields td {
+    .field-row td {
         vertical-align: bottom;
         padding: 0;
         white-space: nowrap;
     }
     .flbl {
         font-weight: bold;
-        font-size: 14px;
-        padding-right: 6px;
+        font-size: 20px;
+        color: #000;
+        padding-right: 4px;
     }
-    .fval {
-        border-bottom: 1.5px solid #111;
-        font-size: 13px;
-        padding: 0 4px 1px 3px;
+    /* Underline stretches under both the label+value area */
+    .fline {
+        border-bottom: 1.5px solid #000;
         display: inline-block;
+        font-size: 20px;
+        color: #000;
+        padding: 0 4px 1px 3px;
+        vertical-align: bottom;
     }
 
-    /* ══ Rx — cursive script style ══ */
+    /* ══ Rx ══ */
     .rx-area {
         padding: 28px 0 0 18px;
     }
@@ -147,20 +171,37 @@ $html = <<<HTML
         font-size: 72px;
         font-weight: bold;
         font-style: italic;
-        color: #111;
+        color: #000;
         line-height: 1;
     }
 
-    /* ══ SIGNATURE pinned bottom-right, no line ══ */
+    /* ══ SIGNATURE pinned bottom-right ══ */
     .sig {
         position: absolute;
         bottom: 40px;
         right: 30px;
         text-align: right;
+        color: #000;
     }
-    .sig-name  { font-weight: bold; font-size: 13px; }
-    .sig-title { font-size: 12px; color: #333; margin-top: 2px; }
-    .sig-lic   { font-size: 11px; color: #333; margin-top: 1px; }
+    .sig-name  { font-weight: bold; font-size: 13px; color: #000; }
+    .sig-title { font-size: 12px; color: #000; margin-top: 2px; }
+    .sig-lic   { font-size: 11px; color: #000; margin-top: 1px; }
+
+    /* ══ SOAP NOTES ══ */
+    .soap-area {
+        padding: 10px 30px 0 20px;
+        font-size: 25px;
+        color: #000;
+        line-height: 1.8;
+        margin-top: 15px;
+    }
+
+    /* ══ DIAGNOSIS ══ */
+    .diag-area {
+        padding: 12px 30px 0 20px;
+        font-size: 25px;
+        color: #000;
+    }
 </style>
 </head>
 <body>
@@ -171,7 +212,7 @@ $html = <<<HTML
         <div class="header-logo">{$logo_html}</div>
         <div class="header-text">
             <div class="clinic-name">OBESO MEDICAL CLINIC</div>
-            <div class="clinic-sub" style="color: black;">Family &amp; Wellness Center</div>
+            <div class="clinic-sub">Family &amp; Wellness Center</div>
             <div class="clinic-addr">Poog, Toledo City</div>
         </div>
     </div>
@@ -184,34 +225,48 @@ $html = <<<HTML
 
     <!-- ══ PATIENT FIELDS ══ -->
     <div class="fields">
-        <!-- Row 1: Name -->
-        <table>
+
+        <!-- Row 1: Name ___________ Age _____ Sex _____ -->
+        <table class="field-row">
             <tr>
-                <td style="width:70px;"><span class="flbl">Name</span></td>  <!-- fixed width -->
-                <td><span class="fval" style="min-width:400px;">{$patient_name}</span></td>
-                <td style="width:22px;"></td>
+                <td><span class="flbl">Name</span></td>
+                <td style="width:42%;"><span class="fline" style="min-width:210px;">{$patient_name}</span></td>
+                <td style="width:28px;"></td>
                 <td><span class="flbl">Age</span></td>
-                <td><span class="fval" style="min-width:60px;">{$patient_age}</span></td>
-                <td style="padding-left:18px;"><span class="flbl">Sex</span></td>
-                <td><span class="fval" style="min-width:65px;">{$patient_sex}</span></td>
+                <td><span class="fline" style="min-width:55px;">{$patient_age}</span></td>
+                <td style="width:20px;"></td>
+                <td><span class="flbl">Sex</span></td>
+                <td><span class="fline" style="min-width:65px;">{$patient_sex}</span></td>
             </tr>
         </table>
 
-        <!-- Row 2: Address -->
-        <table>
+        <!-- Row 2: Address ___________ Date _____ -->
+        <table class="field-row">
             <tr>
-                <td style="width:70px;"><span class="flbl">Address</span></td>  <!-- same fixed width -->
-                <td><span class="fval" style="min-width:400px;">{$patient_address}</span></td>
-                <td style="width:22px;"></td>
-                <td><span class="flbl" style="margin-left: -47px;">Date</span></td>
-                <td colspan="3"><span class="fval" style="min-width:150px;">{$today}</span></td>
+                <td><span class="flbl">Address</span></td>
+                <td style="width:42%;"><span class="fline" style="min-width:190px;">{$patient_address}</span></td>
+                <td style="width:28px;"></td>
+                <td><span class="flbl">Date</span></td>
+                <td colspan="3"><span class="fline" style="min-width:145px;">{$today}</span></td>
             </tr>
         </table>
+
     </div>
 
     <!-- ══ Rx SYMBOL ══ -->
     <div class="rx-area">
         <span class="rx-symbol">Rx</span>
+    </div>
+
+    <!-- ══ DIAGNOSIS ══ -->
+    <div class="diag-area" style="margin-top: 20px;">
+        <span class="flbl">Diagnosis:</span>
+        <span class="fline" style="min-width:300px; text-size: 25px;">{$diagnosis}</span>
+    </div>
+
+    <!-- ══ SOAP NOTES ══ -->
+    <div class="soap-area">
+        {$soap_html}
     </div>
 
     <!-- ══ SIGNATURE ══ -->
