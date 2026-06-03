@@ -22,6 +22,29 @@ def home():
 
 
 # ──────────────────────────────────────────────
+# /retrain  — retrain model with latest DB data
+# ──────────────────────────────────────────────
+@api.route("/retrain", methods=["POST"])
+def retrain():
+    try:
+        global model, ACTIVE_FEATURE_COLUMNS
+        from model_util import train_model, ACTIVE_FEATURE_COLUMNS as old_cols
+        
+        logger.info("Manual retrain requested")
+        model = train_model()
+        ACTIVE_FEATURE_COLUMNS = old_cols  # already updated by train_model
+        
+        return jsonify({
+            "success": True,
+            "message": "Model retrained successfully",
+            "active_features": ACTIVE_FEATURE_COLUMNS
+        })
+    except Exception as e:
+        logger.exception("Retrain error")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ──────────────────────────────────────────────
 # /predict  — real-time symptom prediction
 # ──────────────────────────────────────────────
 @api.route("/predict", methods=["POST"])

@@ -92,6 +92,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
         }
 
         $db->commit();
+        
+        // Trigger AI model retrain in background (non-blocking)
+        @file_get_contents('http://127.0.0.1:8000/retrain', false, stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'timeout' => 5
+            ]
+        ]));
+        
         header("Location: doctor_medical_records_management.php?patient_id={$patient_id}&success=1");
         exit();
     } catch (Exception $e) {
@@ -777,7 +786,31 @@ if (!empty($patient)) {
             }
         }
 
-        document.addEventListener('DOMContentLoaded', loadAiInsights);
+        document.addEventListener('DOMContentLoaded', function() {
+            loadAiInsights();
+            
+            // If page just redirected after save, show success and refresh AI predictions with new data
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('success') === '1') {
+                // Show success message
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-success alert-dismissible fade show';
+                alertDiv.innerHTML = `
+                    <strong>Success!</strong> Checkup record saved. AI is analyzing with new patient data...
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                const main = document.querySelector('main');
+                if (main) main.insertBefore(alertDiv, main.firstChild);
+                
+                // Wait 3 seconds for model retrain, then refresh AI predictions
+                setTimeout(function() {
+                    loadAiInsights();
+                }, 3000);
+                
+                // Clean up URL (remove success param)
+                window.history.replaceState({}, document.title, window.location.pathname + window.location.search.replace(/[?&]success=1/, ''));
+            }
+        });
     </script>
 </body>
 </html>
