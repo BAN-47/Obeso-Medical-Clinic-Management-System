@@ -452,15 +452,6 @@ if (isset($_GET['patient_id'])) {
                                         </div>
 
                                         <!-- Medications -->
-                                        <div class="card mb-2 shadow-sm">
-                                            <div class="section-header"><i class="fa-solid fa-pills me-2"></i> Medications</div>
-                                            <div class="card-body">
-                                                <div id="medications"></div>
-                                                <button type="button" class="btn btn-outline-secondary mt-2" onclick="addMedication()">
-                                                    <i class="fa-solid fa-plus"></i> Add Medication
-                                                </button>
-                                            </div>
-                                        </div>
 
                                     </form>
                                 </div>
