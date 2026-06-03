@@ -150,6 +150,7 @@ def predict():
 
         return jsonify({
             "current_diagnosis": str(current_diagnosis),
+            "disease":           str(current_diagnosis),
             "confidence":        confidence,
             "supporting_evidence": supporting_evidence,
             "related_future_conditions": related_future_conditions,

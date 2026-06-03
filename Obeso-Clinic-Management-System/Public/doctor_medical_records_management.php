@@ -193,6 +193,7 @@ if (!empty($patient)) {
     if ($sourceCheckup) {
         $aiPredictionsData = [
             'patient_id' => $patient['patient_id'],
+            'diagnosis' => $sourceCheckup['diagnosis'] ?? '',
             'chief_complaint' => $sourceCheckup['chief_complaint'] ?? '',
             'history_present_illness' => $sourceCheckup['history_present_illness'] ?? '',
             'blood_pressure' => $sourceCheckup['blood_pressure'] ?? '',
@@ -759,8 +760,9 @@ if (!empty($patient)) {
                         <div class="col-md-4">
                             <div class="p-3 bg-light rounded h-100">
                                 <strong>Predicted Diagnosis</strong>
-                                <div class="fs-4 fw-bold mt-2">${escapeHtml(data.disease || 'Unknown')}</div>
+                                <div class="fs-4 fw-bold mt-2">${escapeHtml(data.current_diagnosis || data.disease || 'Unknown')}</div>
                                 <div class="text-muted">Confidence: ${escapeHtml(data.confidence?.toFixed?.(1) ?? data.confidence ?? 0)}%</div>
+                                ${data.supporting_evidence && data.supporting_evidence.length ? `<div class="mt-2 text-muted"><small>Evidence: ${escapeHtml(data.supporting_evidence.join(', '))}</small></div>` : ''}
                             </div>
                         </div>
                         <div class="col-md-4">
