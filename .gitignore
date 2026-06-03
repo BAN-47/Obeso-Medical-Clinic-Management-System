@@ -1,0 +1,8 @@
+# Ignore Composer PHAR executables
+composer.phar
+**/composer.phar
+
+# Node, Python, vendor folders (optional common ignores)
+node_modules/
+__pycache__/
+vendor/
