@@ -182,9 +182,9 @@ $html = <<<HTML
         text-align: right;
         color: #000;
     }
-    .sig-name  { font-weight: bold; font-size: 13px; color: #000; }
-    .sig-title { font-size: 12px; color: #000; margin-top: 2px; }
-    .sig-lic   { font-size: 11px; color: #000; margin-top: 1px; }
+    .sig-name  { font-weight: bold; font-size: 16px; color: #000; }
+    .sig-title { font-size: 15px; color: #000; margin-top: 2px; }
+    .sig-lic   { font-size: 14px; color: #000; margin-top: 1px; }
 
     /* ══ SOAP NOTES ══ */
     .soap-area {
@@ -224,12 +224,12 @@ $html = <<<HTML
 
     <!-- ══ PATIENT FIELDS ══ -->
     <div class="fields">
-
+ 
         <!-- Row 1: Name ___________ Age _____ Sex _____ -->
         <table class="field-row">
             <tr>
                 <td><span class="flbl">Name</span></td>
-                <td style="width:42%;"><span class="fline" style="min-width:210px;">{$patient_name}</span></td>
+                <td style="width:42%;"><span class="fline" style="min-width:400px;">{$patient_name}</span></td>
                 <td style="width:28px;"></td>
                 <td><span class="flbl">Age</span></td>
                 <td><span class="fline" style="min-width:55px;">{$patient_age}</span></td>
@@ -238,15 +238,15 @@ $html = <<<HTML
                 <td><span class="fline" style="min-width:65px;">{$patient_sex}</span></td>
             </tr>
         </table>
-
+ 
         <!-- Row 2: Address ___________ Date _____ -->
         <table class="field-row">
             <tr>
-                <td><span class="flbl">Address</span></td>
-                <td style="width:42%;"><span class="fline" style="min-width:190px;">{$patient_address}</span></td>
+                <td><span class="flbl" style="margin-right: -45px;">Address</span></td>
+                <td style="width:40%;"><span class="fline" style="min-width:380px;">{$patient_address}</span></td>
                 <td style="width:28px;"></td>
-                <td><span class="flbl">Date</span></td>
-                <td colspan="3"><span class="fline" style="min-width:145px;">{$today}</span></td>
+                <td><span class="flbl" style=" margin-left: -11px;">Date</span></td>
+                <td colspan="3"><span class="fline" style="min-width:145px; margin-left: -45px;">{$today}</span></td>
             </tr>
         </table>
 
