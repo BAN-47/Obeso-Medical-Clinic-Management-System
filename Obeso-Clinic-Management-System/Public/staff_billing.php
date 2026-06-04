@@ -676,144 +676,150 @@ function addMedRow() {
 
     const genericInput = tr.querySelector('[name="med_generic[]"]');
     const brandInput   = tr.querySelector('[name="med_brand[]"]');
+    const priceInput   = tr.querySelector('[name="med_price[]"]');
 
-    // When a generic is picked, auto-fill the matching brand
-    buildAutocomplete(genericInput,
-        () => [...new Set(allMedications.map(m => m.generic_name))],
-        (val, inp) => {
-            const match = allMedications.find(m => m.generic_name === val);
-            if (match) {
-                brandInput.value = match.brand_name;
-                const priceInput = tr.querySelector('[name="med_price[]"]');
-                priceInput.value = match.unit_price ? parseFloat(match.unit_price).toFixed(2) : '';
-                calcMedRow(id);
-                syncMedFee();
-            }
-        }
-    );
+    const genericDropdown = genericInput.closest('.med-autocomplete-wrapper').querySelector('.med-dropdown');
+    const brandDropdown   = brandInput.closest('.med-autocomplete-wrapper').querySelector('.med-dropdown');
 
-    buildAutocomplete(brandInput,
-        () => {
-            const typedGeneric = genericInput.value.trim();
-            if (typedGeneric) {
-                return [...new Set(
-                    allMedications
-                        .filter(m => m.generic_name.toLowerCase() === typedGeneric.toLowerCase())
-                        .map(m => m.brand_name)
-                )];
-            }
-            // If no generic typed yet, show all brands
-            return [...new Set(allMedications.map(m => m.brand_name))];
-        },
-        (val, inp) => {
-            const match = allMedications.find(m => m.brand_name === val);
-            if (match) {
-                genericInput.value = match.generic_name;
-                const priceInput = tr.querySelector('[name="med_price[]"]');
-                priceInput.value = match.unit_price ? parseFloat(match.unit_price).toFixed(2) : '';
-                calcMedRow(id);
-                syncMedFee();
-            }
-        }
-    );
+    function highlight(text, query) {
+        const idx = text.toLowerCase().indexOf(query.toLowerCase());
+        if (idx === -1) return text;
+        return text.slice(0, idx)
+            + '<span class="match-highlight">' + text.slice(idx, idx + query.length) + '</span>'
+            + text.slice(idx + query.length);
+    }
 
-    genericInput.addEventListener('input', function() {
-        const typedGeneric = this.value.trim();
-        if (!typedGeneric) {
-            brandInput.value = '';
-            const brandDropdown = brandInput.closest('.med-autocomplete-wrapper').querySelector('.med-dropdown');
-            brandDropdown.classList.remove('show');
-            brandDropdown.innerHTML = '';
-            return;
-        }
+    function fillFromMed(med) {
+        if (!med) return;
+        genericInput.value = med.generic_name;
+        brandInput.value   = med.brand_name;
+        priceInput.value   = med.unit_price ? parseFloat(med.unit_price).toFixed(2) : '';
+        genericDropdown.classList.remove('show');
+        brandDropdown.classList.remove('show');
+        calcMedRow(id);
+        syncMedFee();
+    }
 
-        const matchingBrands = [...new Set(
+    // ── Generic input ──────────────────────────────────────────────────────
+    genericInput.addEventListener('input', function () {
+        const q = this.value.trim();
+        brandInput.value = '';
+        priceInput.value = '';
+        brandDropdown.classList.remove('show');
+
+        if (!q) { genericDropdown.classList.remove('show'); return; }
+
+        // Unique generic names that match
+        const matchedGenerics = [...new Set(
             allMedications
-                .filter(m => m.generic_name.toLowerCase().startsWith(typedGeneric.toLowerCase()))
-                .map(m => m.brand_name)
-        )];
+                .filter(m => m.generic_name.toLowerCase().startsWith(q.toLowerCase()))
+                .map(m => m.generic_name)
+        )].slice(0, 10);
 
-        if (matchingBrands.length === 1) {
-            brandInput.value = matchingBrands[0];
-            const match = allMedications.find(m => m.brand_name === matchingBrands[0]);
-            if (match) {
-                const priceInput = tr.querySelector('[name="med_price[]"]');
-                priceInput.value = match.unit_price ? parseFloat(match.unit_price).toFixed(2) : '';
+        if (!matchedGenerics.length) { genericDropdown.classList.remove('show'); return; }
+
+        genericDropdown.innerHTML = matchedGenerics.map(g =>
+            `<div class="med-dropdown-item" data-value="${g}">${highlight(g, q)}</div>`
+        ).join('');
+        genericDropdown.classList.add('show');
+
+        genericDropdown.querySelectorAll('.med-dropdown-item').forEach(el => {
+            el.addEventListener('mousedown', function (e) {
+                e.preventDefault();
+                const selectedGeneric = this.dataset.value;
+                genericInput.value = selectedGeneric;
+                genericDropdown.classList.remove('show');
+
+                // Get all brands for this exact generic
+                const matchingBrands = allMedications.filter(
+                    m => m.generic_name === selectedGeneric
+                );
+
+                if (matchingBrands.length === 1) {
+                    // Only one brand — auto-fill immediately
+                    fillFromMed(matchingBrands[0]);
+                } else {
+                    // Multiple brands — show brand dropdown
+                    brandInput.value = '';
+                    priceInput.value = '';
+                    brandDropdown.innerHTML = matchingBrands.map(m =>
+                        `<div class="med-dropdown-item" data-value="${m.brand_name}" data-price="${m.unit_price}">${m.brand_name}</div>`
+                    ).join('');
+                    brandDropdown.classList.add('show');
+                    brandInput.focus();
+
+                    brandDropdown.querySelectorAll('.med-dropdown-item').forEach(bel => {
+                        bel.addEventListener('mousedown', function (e) {
+                            e.preventDefault();
+                            brandInput.value = this.dataset.value;
+                            priceInput.value = parseFloat(this.dataset.price).toFixed(2);
+                            brandDropdown.classList.remove('show');
+                            calcMedRow(id);
+                            syncMedFee();
+                        });
+                    });
+                }
+            });
+        });
+    });
+
+    genericInput.addEventListener('keydown', function (e) {
+        const items = genericDropdown.querySelectorAll('.med-dropdown-item');
+        if (!items.length) return;
+        let activeIdx = [...items].findIndex(el => el.classList.contains('active'));
+        if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, items.length - 1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); }
+        else if (e.key === 'Escape') { genericDropdown.classList.remove('show'); return; }
+        else if (e.key === 'Enter' && activeIdx >= 0) { e.preventDefault(); items[activeIdx].dispatchEvent(new MouseEvent('mousedown')); return; }
+        items.forEach((el, i) => el.classList.toggle('active', i === activeIdx));
+        if (activeIdx >= 0) items[activeIdx].scrollIntoView({ block: 'nearest' });
+    });
+
+    genericInput.addEventListener('blur', () => setTimeout(() => genericDropdown.classList.remove('show'), 150));
+
+    // ── Brand input (manual typing) ────────────────────────────────────────
+    brandInput.addEventListener('input', function () {
+        const q = this.value.trim();
+        const lockedGeneric = genericInput.value.trim();
+
+        if (!q) { brandDropdown.classList.remove('show'); return; }
+
+        // Filter brands — if a generic is already chosen, restrict to that generic only
+        const candidates = lockedGeneric
+            ? allMedications.filter(m =>
+                m.generic_name === lockedGeneric &&
+                m.brand_name.toLowerCase().startsWith(q.toLowerCase())
+              )
+            : allMedications.filter(m =>
+                m.brand_name.toLowerCase().startsWith(q.toLowerCase())
+              );
+
+        const unique = [...new Map(candidates.map(m => [m.brand_name, m])).values()].slice(0, 10);
+
+        if (!unique.length) { brandDropdown.classList.remove('show'); return; }
+
+        brandDropdown.innerHTML = unique.map(m =>
+            `<div class="med-dropdown-item" data-generic="${m.generic_name}" data-value="${m.brand_name}" data-price="${m.unit_price}">
+                ${highlight(m.brand_name, q)}
+                <span class="text-muted" style="font-size:11px;"> — ${m.generic_name}</span>
+             </div>`
+        ).join('');
+        brandDropdown.classList.add('show');
+
+        brandDropdown.querySelectorAll('.med-dropdown-item').forEach(el => {
+            el.addEventListener('mousedown', function (e) {
+                e.preventDefault();
+                genericInput.value = this.dataset.generic;
+                brandInput.value   = this.dataset.value;
+                priceInput.value   = parseFloat(this.dataset.price).toFixed(2);
+                brandDropdown.classList.remove('show');
                 calcMedRow(id);
                 syncMedFee();
-            }
-        } else {
-            brandInput.value = '';
-            const brandWrapper = brandInput.closest('.med-autocomplete-wrapper');
-            const brandDropdown = brandWrapper.querySelector('.med-dropdown');
-
-            if (!matchingBrands.length) {
-                brandDropdown.classList.remove('show');
-                return;
-            }
-
-            brandDropdown.innerHTML = matchingBrands.map((b, i) =>
-                `<div class="med-dropdown-item" data-value="${b}">${b}</div>`
-            ).join('');
-            brandDropdown.classList.add('show');
-
-            brandDropdown.querySelectorAll('.med-dropdown-item').forEach(el => {
-                el.addEventListener('mousedown', function(e) {
-                    e.preventDefault();
-                    brandInput.value = this.dataset.value;
-                    brandDropdown.classList.remove('show');
-                    const match = allMedications.find(m => m.brand_name === this.dataset.value);
-                    if (match) {
-                        const priceInput = tr.querySelector('[name="med_price[]"]');
-                        priceInput.value = match.unit_price ? parseFloat(match.unit_price).toFixed(2) : '';
-                        calcMedRow(id);
-                        syncMedFee();
-                    }
-                });
             });
-        }
+        });
     });
 
-    brandInput.addEventListener('input', function() {
-        const typedBrand = this.value.trim();
-        const typedGeneric = genericInput.value.trim();
-
-        if (!typedBrand && typedGeneric) {
-            const matchingBrands = [...new Set(
-                allMedications
-                    .filter(m => m.generic_name.toLowerCase().startsWith(typedGeneric.toLowerCase()))
-                    .map(m => m.brand_name)
-            )];
-
-            const brandWrapper = brandInput.closest('.med-autocomplete-wrapper');
-            const brandDropdown = brandWrapper.querySelector('.med-dropdown');
-
-            if (!matchingBrands.length) {
-                brandDropdown.classList.remove('show');
-                return;
-            }
-
-            brandDropdown.innerHTML = matchingBrands.map(b =>
-                `<div class="med-dropdown-item" data-value="${b}">${b}</div>`
-            ).join('');
-            brandDropdown.classList.add('show');
-
-            brandDropdown.querySelectorAll('.med-dropdown-item').forEach(el => {
-                el.addEventListener('mousedown', function(e) {
-                    e.preventDefault();
-                    brandInput.value = this.dataset.value;
-                    brandDropdown.classList.remove('show');
-                    const match = allMedications.find(m => m.brand_name === this.dataset.value);
-                    if (match) {
-                        const priceInput = tr.querySelector('[name="med_price[]"]');
-                        priceInput.value = match.unit_price ? parseFloat(match.unit_price).toFixed(2) : '';
-                        calcMedRow(id);
-                        syncMedFee();
-                    }
-                });
-            });
-        }
-    });
+    brandInput.addEventListener('blur', () => setTimeout(() => brandDropdown.classList.remove('show'), 150));
 }
 
 function calcMedRow(id) {
