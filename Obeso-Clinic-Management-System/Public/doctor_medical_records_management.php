@@ -77,22 +77,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
             !empty($_POST['doc_fullname']) ? $_POST['doc_fullname'] : null
         );
 
-        if (!empty($_POST['generic_name'])) {
-            foreach ($_POST['generic_name'] as $i => $generic) {
+        if (!empty($_POST['med_generic'])) {
+            foreach ($_POST['med_generic'] as $i => $generic) {
                 if (trim($generic) === '') continue;
 
-                $medObj->add($generic, $_POST['brand_name'][$i] ?? null);
+                $medObj->add($generic, $_POST['med_brand'][$i] ?? null);
                 $med_id = $db->lastInsertId();
 
                 $presObj->add(
                     $checkup_id,
                     $med_id,
-                    $_POST['generic_name'][$i],
-                    $_POST['brand_name'][$i] ?? null,
-                    $_POST['dose'][$i] ?? null,
-                    $_POST['amount'][$i] ?? null,
-                    $_POST['frequency'][$i] ?? null,
-                    $_POST['duration'][$i] ?? null
+                    $generic,
+                    $_POST['med_brand'][$i] ?? null,
+                    null,  
+                    $_POST['med_qty'][$i] ?? null,
+                    null,  
+                    null   
                 );
             }
         }
@@ -212,6 +212,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
         $cid = (int)$_POST['checkup_id'];
         $pid = (int)$_POST['patient_id'];
 
+        // Update checkup fields
         $stmt = $db->prepare("UPDATE checkups SET
             checkup_date = ?, diagnosis = ?, chief_complaint = ?,
             history_present_illness = ?, blood_pressure = ?,
@@ -229,6 +230,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
             $_POST['temperature'] ?? null,
             $cid
         ]);
+
+        // Delete old medications for this checkup then re-insert
+        $db->prepare("DELETE FROM prescribed_medications WHERE checkup_id = ?")->execute([$cid]);
+
+        if (!empty($_POST['edit_med_generic'])) {
+            foreach ($_POST['edit_med_generic'] as $i => $generic) {
+                if (trim($generic) === '') continue;
+
+                $medObj->add($generic, $_POST['edit_med_brand'][$i] ?? null);
+                $med_id = $db->lastInsertId();
+
+                $presObj->add(
+                    $cid,
+                    $med_id,
+                    $generic,
+                    $_POST['edit_med_brand'][$i] ?? null,
+                    null,
+                    $_POST['edit_med_qty'][$i] ?? null,
+                    null,
+                    null
+                );
+            }
+        }
 
         $db->commit();
         header("Location: doctor_medical_records_management.php?patient_id={$pid}&success=1");
@@ -322,6 +346,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
         font-weight: 500;
         }
         .med-dropdown-item .match-highlight { color: #1a6fd4; font-weight: 700; }
+
+        #layoutSidenav_content main {
+            padding-bottom: 80px;
+        }
+
+        .modal .med-dropdown {
+            z-index: 99999 !important;
+        }
     </style>
 </head>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -739,18 +771,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
                                         <div class="col">TEMP<br><strong><?= $c['temperature'] ?></strong></div>
                                     </div>
 
+                                    <hr>
+                                    <h6 class="fw-bold mb-2" style="color:#062e6b;">
+                                        <i class="fa-solid fa-pills me-1" style="margin-top: 15px;"></i> Medications
+                                    </h6>
                                     <?php if (!empty($c['medications'])): ?>
-                                        <hr>
-                                        <h5>Medications</h5>
-                                        <table class="table table-bordered">
-                                            <thead>
+                                        <table class="table table-sm table-bordered mb-0">
+                                            <thead style="background:#f0f4ff;">
                                                 <tr>
-                                                    <th>Generic</th>
-                                                    <th>Brand</th>
-                                                    <th>Dose</th>
-                                                    <th>Amount</th>
-                                                    <th>Frequency</th>
-                                                    <th>Duration</th>
+                                                    <th style="color:#062e6b;">Generic</th>
+                                                    <th style="color:#062e6b;">Brand</th>
+                                                    <th style="color:#062e6b;">Dose</th>
+                                                    <th style="color:#062e6b;">Amount</th>
+                                                    <th style="color:#062e6b;">Frequency</th>
+                                                    <th style="color:#062e6b;">Duration</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -758,14 +792,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
                                                     <tr>
                                                         <td><?= htmlspecialchars($m['pres_generic_name']) ?></td>
                                                         <td><?= htmlspecialchars($m['pres_brand_name']) ?></td>
-                                                        <td><?= htmlspecialchars($m['dose']) ?></td>
-                                                        <td><?= htmlspecialchars($m['amount']) ?></td>
-                                                        <td><?= htmlspecialchars($m['frequency']) ?></td>
-                                                        <td><?= htmlspecialchars($m['duration']) ?></td>
+                                                        <td><?= htmlspecialchars($m['dose'] ?? '—') ?></td>
+                                                        <td><?= htmlspecialchars($m['amount'] ?? '—') ?></td>
+                                                        <td><?= htmlspecialchars($m['frequency'] ?? '—') ?></td>
+                                                        <td><?= htmlspecialchars($m['duration'] ?? '—') ?></td>
                                                     </tr>
                                                 <?php endforeach; ?>
                                             </tbody>
                                         </table>
+                                    <?php else: ?>
+                                        <p class="text-muted mb-0" style="font-size:0.875rem;">
+                                            <i class="fa fa-circle-info me-1"></i> No medications recorded for this checkup.
+                                        </p>
                                     <?php endif; ?>
 
                                     <div class="mt-3">
@@ -888,6 +926,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
                                                 </table>
                                             </div>
                                         </div>
+                                            <div class="card mb-2 shadow-sm">
+                                            <div class="section-header">
+                                                <i class="fa-solid fa-user-doctor me-2"></i> Doctor
+                                            </div>
                                             <div class="card-body">
                                                 <input class="form-control" id="edit_doc" readonly>
                                             </div>
@@ -912,7 +954,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
     <script>
         const AI_PREDICTION_PAYLOAD = <?= json_encode($aiPredictionsData, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>;
         const AI_API_URL = 'ai_predict.php';
-        const allMedications = <?= json_encode($allMedications, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>;
+        const allMedications = <?= json_encode($allMedications ?? [], JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>;
 
         // ── AI helpers ────────────────────────────────────────────────────────
         function escapeHtml(str) {
@@ -1033,13 +1075,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
                 + escapeHtml(text.slice(idx + query.length));
         }
 
-        function attachMedAutocomplete(tr, rowId, bodyId) {
-            const genericInput = tr.querySelector('[name="med_generic[]"]');
-            const brandInput   = tr.querySelector('[name="med_brand[]"]');
-            const prepInput    = tr.querySelector('[name="med_preparation[]"]');
-            const volumeInput  = tr.querySelector('[name="med_volume[]"]');
-            const genericDropdown = genericInput.closest('.med-autocomplete-wrapper').querySelector('.med-dropdown');
-            const brandDropdown   = brandInput.closest('.med-autocomplete-wrapper').querySelector('.med-dropdown');
+            function attachMedAutocomplete(tr, rowId, bodyId, prefix) {
+                prefix = prefix || 'med';
+                const genericInput    = tr.querySelector(`[name="${prefix}_generic[]"]`);
+                const brandInput      = tr.querySelector(`[name="${prefix}_brand[]"]`);
+                const prepInput       = tr.querySelector(`[name="${prefix}_preparation[]"]`);
+                const volumeInput     = tr.querySelector(`[name="${prefix}_volume[]"]`);
+                const genericDropdown = genericInput.closest('.med-autocomplete-wrapper').querySelector('.med-dropdown');
+                const brandDropdown   = brandInput.closest('.med-autocomplete-wrapper').querySelector('.med-dropdown');
 
             function fillRow(med) {
                 if (!med) return;
@@ -1167,7 +1210,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
                     onclick="this.closest('tr').remove()"><i class="fa fa-times"></i></button></td>
             `;
             document.getElementById('newMedBody').appendChild(tr);
-            attachMedAutocomplete(tr, id, 'newMedBody');
+            attachMedAutocomplete(tr, id, 'newMedBody', 'med');
         }
 
         // ── Edit Record — med rows ────────────────────────────────────────────
@@ -1198,7 +1241,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
                     onclick="this.closest('tr').remove()"><i class="fa fa-times"></i></button></td>
             `;
             document.getElementById('editMedBody').appendChild(tr);
-            attachMedAutocomplete(tr, id, 'editMedBody');
+            attachMedAutocomplete(tr, id, 'editMedBody', 'edit_med');
         }
     </script>
 </body>
