@@ -203,7 +203,7 @@ $bills = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 
 $medications = $db->query("
-    SELECT generic_name, brand_name, unit_price
+    SELECT generic_name, brand_name, preparation, `volume/bottle` AS volume_bottle, unit_price
     FROM medications
     ORDER BY generic_name ASC
 ")->fetchAll(PDO::FETCH_ASSOC);
@@ -430,6 +430,8 @@ $patientCheckups = $db->query("
           <tr>
             <th style="color:#062e6b;">Generic Name</th>
             <th style="color:#062e6b;">Brand Name</th>
+            <th style="color:#062e6b;">Preparation</th>
+            <th style="color:#062e6b;">Volume/Bottle</th>
             <th style="color:#062e6b; width:80px;">Qty</th>
             <th style="color:#062e6b; width:130px;">Unit Price (₱)</th>
             <th style="color:#062e6b; width:120px; text-align:right;">Subtotal</th>
@@ -653,21 +655,29 @@ function addMedRow() {
         <td>
             <div class="med-autocomplete-wrapper">
                 <input type="text" class="form-control form-control-sm" name="med_generic[]"
-                       placeholder="Type generic name..." autocomplete="off">
+                    placeholder="Type generic name..." autocomplete="off">
                 <div class="med-dropdown"></div>
             </div>
         </td>
         <td>
             <div class="med-autocomplete-wrapper">
                 <input type="text" class="form-control form-control-sm" name="med_brand[]"
-                       placeholder="Type brand name..." autocomplete="off">
+                    placeholder="Type brand name..." autocomplete="off">
                 <div class="med-dropdown"></div>
             </div>
         </td>
+        <td>
+            <input type="text" class="form-control form-control-sm" name="med_preparation[]"
+                placeholder="—" readonly>
+        </td>
+        <td>
+            <input type="text" class="form-control form-control-sm" name="med_volume[]"
+                placeholder="—" readonly>
+        </td>
         <td><input type="number" class="form-control form-control-sm" name="med_qty[]" value="1" min="1"
-                  oninput="calcMedRow(${id}); syncMedFee();"></td>
+                oninput="calcMedRow(${id}); syncMedFee();"></td>
         <td><input type="number" class="form-control form-control-sm" name="med_price[]" placeholder="0.00" step="0.01" min="0"
-                  oninput="calcMedRow(${id}); syncMedFee();" readonly></td>
+                oninput="calcMedRow(${id}); syncMedFee();" readonly></td>
         <td class="text-end fw-semibold text-primary" id="med-sub-${id}">₱0.00</td>
         <td><button type="button" class="btn btn-sm btn-link text-danger p-0"
                     onclick="removeMedRow(${id})"><i class="fa fa-times"></i></button></td>
@@ -677,6 +687,8 @@ function addMedRow() {
     const genericInput = tr.querySelector('[name="med_generic[]"]');
     const brandInput   = tr.querySelector('[name="med_brand[]"]');
     const priceInput   = tr.querySelector('[name="med_price[]"]');
+    const prepInput    = tr.querySelector('[name="med_preparation[]"]');
+    const volumeInput  = tr.querySelector('[name="med_volume[]"]');
 
     const genericDropdown = genericInput.closest('.med-autocomplete-wrapper').querySelector('.med-dropdown');
     const brandDropdown   = brandInput.closest('.med-autocomplete-wrapper').querySelector('.med-dropdown');
@@ -743,7 +755,11 @@ function addMedRow() {
                     brandInput.value = '';
                     priceInput.value = '';
                     brandDropdown.innerHTML = matchingBrands.map(m =>
-                        `<div class="med-dropdown-item" data-value="${m.brand_name}" data-price="${m.unit_price}">${m.brand_name}</div>`
+                        `<div class="med-dropdown-item" 
+                            data-value="${m.brand_name}" 
+                            data-price="${m.unit_price}"
+                            data-prep="${m.preparation || ''}"
+                            data-volume="${m.volume_bottle || ''}">${m.brand_name}</div>`   // ← fix
                     ).join('');
                     brandDropdown.classList.add('show');
                     brandInput.focus();
@@ -751,8 +767,10 @@ function addMedRow() {
                     brandDropdown.querySelectorAll('.med-dropdown-item').forEach(bel => {
                         bel.addEventListener('mousedown', function (e) {
                             e.preventDefault();
-                            brandInput.value = this.dataset.value;
-                            priceInput.value = parseFloat(this.dataset.price).toFixed(2);
+                            brandInput.value  = this.dataset.value;
+                            priceInput.value  = parseFloat(this.dataset.price).toFixed(2);
+                            prepInput.value   = this.dataset.prep   || '';
+                            volumeInput.value = this.dataset.volume || '';
                             brandDropdown.classList.remove('show');
                             calcMedRow(id);
                             syncMedFee();
@@ -799,19 +817,25 @@ function addMedRow() {
         if (!unique.length) { brandDropdown.classList.remove('show'); return; }
 
         brandDropdown.innerHTML = unique.map(m =>
-            `<div class="med-dropdown-item" data-generic="${m.generic_name}" data-value="${m.brand_name}" data-price="${m.unit_price}">
+            `<div class="med-dropdown-item" 
+                data-generic="${m.generic_name}" 
+                data-value="${m.brand_name}" 
+                data-price="${m.unit_price}"
+                data-prep="${m.preparation || ''}"
+                data-volume="${m.volume_bottle || ''}">    <!-- ← fix -->
                 ${highlight(m.brand_name, q)}
                 <span class="text-muted" style="font-size:11px;"> — ${m.generic_name}</span>
-             </div>`
+            </div>`
         ).join('');
         brandDropdown.classList.add('show');
 
-        brandDropdown.querySelectorAll('.med-dropdown-item').forEach(el => {
-            el.addEventListener('mousedown', function (e) {
+        brandDropdown.querySelectorAll('.med-dropdown-item').forEach(bel => {
+            bel.addEventListener('mousedown', function (e) {
                 e.preventDefault();
-                genericInput.value = this.dataset.generic;
-                brandInput.value   = this.dataset.value;
-                priceInput.value   = parseFloat(this.dataset.price).toFixed(2);
+                brandInput.value  = this.dataset.value;
+                priceInput.value  = parseFloat(this.dataset.price).toFixed(2);
+                prepInput.value   = this.dataset.prep   || '';
+                volumeInput.value = this.dataset.volume || ''; 
                 brandDropdown.classList.remove('show');
                 calcMedRow(id);
                 syncMedFee();
@@ -869,6 +893,19 @@ document.querySelector('form[method="POST"]').addEventListener('submit', functio
     document.getElementById('selectedQueueName').textContent = '';
     document.getElementById('selectedQueueNum').style.display = 'none';
 });
+
+function fillFromMed(med) {
+    if (!med) return;
+    genericInput.value = med.generic_name;
+    brandInput.value   = med.brand_name;
+    priceInput.value   = med.unit_price ? parseFloat(med.unit_price).toFixed(2) : '';
+    prepInput.value    = med.preparation   || '';
+    volumeInput.value  = med.volume_bottle || '';  // ← fix
+    genericDropdown.classList.remove('show');
+    brandDropdown.classList.remove('show');
+    calcMedRow(id);
+    syncMedFee();
+}
 </script>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>

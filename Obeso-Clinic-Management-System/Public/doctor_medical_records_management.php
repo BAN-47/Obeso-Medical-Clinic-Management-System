@@ -198,6 +198,40 @@ if (!empty($patient)) {
         ];
     }
 }
+
+/* ================= EDIT CHECKUP ================= */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
+    try {
+        $db->beginTransaction();
+        $cid = (int)$_POST['checkup_id'];
+        $pid = (int)$_POST['patient_id'];
+
+        $stmt = $db->prepare("UPDATE checkups SET
+            checkup_date = ?, diagnosis = ?, chief_complaint = ?,
+            history_present_illness = ?, blood_pressure = ?,
+            respiratory_rate = ?, weight = ?, heart_rate = ?, temperature = ?
+            WHERE checkup_id = ?");
+        $stmt->execute([
+            $_POST['checkup_date'],
+            $_POST['diagnosis'] ?? null,
+            $_POST['chief_complaint'] ?? null,
+            $_POST['history_present_illness'] ?? null,
+            $_POST['blood_pressure'] ?? null,
+            $_POST['respiratory_rate'] ?? null,
+            $_POST['weight'] ?? null,
+            $_POST['heart_rate'] ?? null,
+            $_POST['temperature'] ?? null,
+            $cid
+        ]);
+
+        $db->commit();
+        header("Location: doctor_medical_records_management.php?patient_id={$pid}&success=1");
+        exit();
+    } catch (Exception $e) {
+        $db->rollBack();
+        $error = $e->getMessage();
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -602,10 +636,28 @@ if (!empty($patient)) {
                     <?php if (!empty($checkups)): ?>
                         <?php foreach ($checkups as $c): ?>
                             <div class="card shadow mb-4">
-                                <div class="section-header">
+                                <div class="section-header d-flex justify-content-between align-items-center">
+                                <span>
                                     <i class="fa fa-stethoscope me-2"></i>
                                     Checkup — <?= $c['checkup_date'] ?> (Doctor: <?= htmlspecialchars($c['doc_fullname']) ?>)
-                                </div>
+                                </span>
+                                <button type="button" class="btn btn-sm btn-light"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#editCheckupModal"
+                                    data-checkup-id="<?= $c['checkup_id'] ?>"
+                                    data-checkup-date="<?= htmlspecialchars($c['checkup_date']) ?>"
+                                    data-diagnosis="<?= htmlspecialchars($c['diagnosis']) ?>"
+                                    data-chief-complaint="<?= htmlspecialchars($c['chief_complaint']) ?>"
+                                    data-hpi="<?= htmlspecialchars($c['history_present_illness'] ?? '') ?>"
+                                    data-bp="<?= htmlspecialchars($c['blood_pressure']) ?>"
+                                    data-rr="<?= htmlspecialchars($c['respiratory_rate']) ?>"
+                                    data-wt="<?= htmlspecialchars($c['weight']) ?>"
+                                    data-hr="<?= htmlspecialchars($c['heart_rate']) ?>"
+                                    data-temp="<?= htmlspecialchars($c['temperature']) ?>"
+                                    data-doc="<?= htmlspecialchars($c['doc_fullname']) ?>">
+                                    <i class="fa fa-pen-to-square me-1"></i> Edit
+                                </button>
+                            </div>
                                 <div class="card-body">
                                     <p><strong>Diagnosis:</strong> <?= htmlspecialchars($c['diagnosis']) ?></p>
                                     <p><strong>Chief Complaint:</strong> <?= htmlspecialchars($c['chief_complaint']) ?></p>
@@ -679,6 +731,90 @@ if (!empty($patient)) {
                         <?php endif; ?>
 
                     <?php endif; ?>
+
+                    <!-- ================= EDIT CHECKUP MODAL ================= -->
+                    <div class="modal fade" id="editCheckupModal" tabindex="-1" aria-labelledby="editCheckupModalLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                            <div class="modal-content">
+                                <div class="modal-header" style="background:#062e6b;">
+                                    <h5 class="modal-title text-white" id="editCheckupModalLabel">
+                                        <i class="fa-solid fa-pen-to-square me-2"></i> Edit Checkup Record
+                                    </h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <form method="POST" id="editCheckupForm">
+                                        <input type="hidden" name="edit_checkup" value="1">
+                                        <input type="hidden" name="checkup_id" id="edit_checkup_id">
+                                        <input type="hidden" name="patient_id" value="<?= $patient['patient_id'] ?? '' ?>">
+
+                                        <div class="card mb-4 shadow-sm">
+                                            <div class="section-header"><i class="fa-solid fa-stethoscope me-2"></i> Checkup Details</div>
+                                            <div class="card-body row g-3">
+                                                <div class="col-md-4">
+                                                    <label class="form-label text-muted small">Checkup Date</label>
+                                                    <input type="date" name="checkup_date" id="edit_checkup_date" class="form-control" required>
+                                                </div>
+                                                <div class="col-md-8">
+                                                    <label class="form-label text-muted small">Diagnosis</label>
+                                                    <input name="diagnosis" id="edit_diagnosis" class="form-control" placeholder="Diagnosis">
+                                                </div>
+                                                <div class="col-12">
+                                                    <label class="form-label text-muted small">Chief Complaint</label>
+                                                    <textarea name="chief_complaint" id="edit_chief_complaint" class="form-control" rows="2"></textarea>
+                                                </div>
+                                                <div class="col-12">
+                                                    <label class="form-label text-muted small">HPI / SOAP Notes</label>
+                                                    <textarea name="history_present_illness" id="edit_hpi" class="form-control" rows="6"></textarea>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="card mb-4 shadow-sm">
+                                            <div class="section-header"><i class="fa-solid fa-heart-pulse me-2"></i> Vitals</div>
+                                            <div class="card-body">
+                                                <div class="row g-2">
+                                                    <div class="col">
+                                                        <label class="form-label text-muted small">BP</label>
+                                                        <input name="blood_pressure" id="edit_bp" class="form-control text-center" placeholder="BP">
+                                                    </div>
+                                                    <div class="col">
+                                                        <label class="form-label text-muted small">RR</label>
+                                                        <input name="respiratory_rate" id="edit_rr" class="form-control text-center" placeholder="RR">
+                                                    </div>
+                                                    <div class="col">
+                                                        <label class="form-label text-muted small">WT</label>
+                                                        <input name="weight" id="edit_wt" class="form-control text-center" placeholder="WT">
+                                                    </div>
+                                                    <div class="col">
+                                                        <label class="form-label text-muted small">HR</label>
+                                                        <input name="heart_rate" id="edit_hr" class="form-control text-center" placeholder="HR">
+                                                    </div>
+                                                    <div class="col">
+                                                        <label class="form-label text-muted small">TEMP</label>
+                                                        <input name="temperature" id="edit_temp" class="form-control text-center" placeholder="TEMP">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="card mb-2 shadow-sm">
+                                            <div class="section-header"><i class="fa-solid fa-user-doctor me-2"></i> Doctor</div>
+                                            <div class="card-body">
+                                                <input class="form-control" id="edit_doc" readonly>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="button" class="btn btn-primary" onclick="confirmEditSave()">
+                                        <i class="fa-solid fa-floppy-disk me-1"></i> Save Changes
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
             </main>
             <?php include "../Includes/footer.html"; ?>
         </div>
@@ -810,6 +946,28 @@ if (!empty($patient)) {
                 window.history.replaceState({}, document.title, window.location.pathname + window.location.search.replace(/[?&]success=1/, ''));
             }
         });
+
+        // Populate edit modal with checkup data
+        document.getElementById('editCheckupModal').addEventListener('show.bs.modal', function (e) {
+            const btn = e.relatedTarget;
+            document.getElementById('edit_checkup_id').value       = btn.dataset.checkupId;
+            document.getElementById('edit_checkup_date').value     = btn.dataset.checkupDate;
+            document.getElementById('edit_diagnosis').value        = btn.dataset.diagnosis;
+            document.getElementById('edit_chief_complaint').value  = btn.dataset.chiefComplaint;
+            document.getElementById('edit_hpi').value              = btn.dataset.hpi;
+            document.getElementById('edit_bp').value               = btn.dataset.bp;
+            document.getElementById('edit_rr').value               = btn.dataset.rr;
+            document.getElementById('edit_wt').value               = btn.dataset.wt;
+            document.getElementById('edit_hr').value               = btn.dataset.hr;
+            document.getElementById('edit_temp').value             = btn.dataset.temp;
+            document.getElementById('edit_doc').value              = btn.dataset.doc;
+        });
+
+        function confirmEditSave() {
+            if (confirm("Save changes to this checkup record?")) {
+                document.getElementById('editCheckupForm').submit();
+            }
+        }
     </script>
 </body>
 </html>
