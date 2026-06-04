@@ -7,59 +7,59 @@ class Medications {
         $this->conn = $db;
     }
 
-    /* ======================
-       GET ALL MEDICATIONS
-    ====================== */
     public function getAllMedications() {
-        $sql = "SELECT * FROM {$this->table} ORDER BY generic_name ASC";
-        $stmt = $this->conn->prepare($sql);
+        $stmt = $this->conn->prepare("SELECT * FROM {$this->table} ORDER BY generic_name ASC");
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    /* ======================
-       GET MEDICATION BY ID
-    ====================== */
     public function getMedicationById($medication_id) {
-        $sql = "SELECT * FROM {$this->table} WHERE medication_id = :id";
-        $stmt = $this->conn->prepare($sql);
+        $stmt = $this->conn->prepare("SELECT * FROM {$this->table} WHERE medication_id = :id");
         $stmt->execute([':id' => $medication_id]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    /* ======================
-       ADD NEW MEDICATION
-    ====================== */
-    public function addMedication($generic_name, $brand_name = null) {
-        $sql = "INSERT INTO {$this->table} (generic_name, brand_name) VALUES (:generic_name, :brand_name)";
-        $stmt = $this->conn->prepare($sql);
+    public function addMedication($generic_name, $brand_name, $category, $preparation, $volume_bottle, $unit_price) {
+        $stmt = $this->conn->prepare(
+            "INSERT INTO {$this->table} 
+                (generic_name, brand_name, category, preparation, `volume/bottle`, unit_price) 
+             VALUES 
+                (:generic_name, :brand_name, :category, :preparation, :volume_bottle, :unit_price)"
+        );
         return $stmt->execute([
-            ':generic_name' => $generic_name,
-            ':brand_name' => $brand_name
+            ':generic_name'  => $generic_name,
+            ':brand_name'    => $brand_name,
+            ':category'      => $category,
+            ':preparation'   => $preparation,
+            ':volume_bottle' => $volume_bottle,
+            ':unit_price'    => $unit_price
         ]);
     }
 
-    /* ======================
-       UPDATE MEDICATION
-    ====================== */
-    public function updateMedication($medication_id, $generic_name, $brand_name = null) {
-        $sql = "UPDATE {$this->table} 
-                SET generic_name = :generic_name, brand_name = :brand_name 
-                WHERE medication_id = :id";
-        $stmt = $this->conn->prepare($sql);
+    public function updateMedication($medication_id, $generic_name, $brand_name, $category, $preparation, $volume_bottle, $unit_price) {
+        $stmt = $this->conn->prepare(
+            "UPDATE {$this->table} SET 
+                generic_name   = :generic_name,
+                brand_name     = :brand_name,
+                category       = :category,
+                preparation    = :preparation,
+                `volume/bottle` = :volume_bottle,
+                unit_price     = :unit_price
+             WHERE medication_id = :id"
+        );
         return $stmt->execute([
-            ':generic_name' => $generic_name,
-            ':brand_name' => $brand_name,
-            ':id' => $medication_id
+            ':generic_name'  => $generic_name,
+            ':brand_name'    => $brand_name,
+            ':category'      => $category,
+            ':preparation'   => $preparation,
+            ':volume_bottle' => $volume_bottle,
+            ':unit_price'    => $unit_price,
+            ':id'            => $medication_id
         ]);
     }
 
-    /* ======================
-       DELETE MEDICATION
-    ====================== */
     public function deleteMedication($medication_id) {
-        $sql = "DELETE FROM {$this->table} WHERE medication_id = :id";
-        $stmt = $this->conn->prepare($sql);
+        $stmt = $this->conn->prepare("DELETE FROM {$this->table} WHERE medication_id = :id");
         return $stmt->execute([':id' => $medication_id]);
     }
 }
