@@ -38,6 +38,12 @@ $checkupObj = new Checkup($db);
 $medObj     = new Medication($db);
 $presObj    = new PrescribedMedication($db);
 
+$allMedications = $db->query("
+    SELECT generic_name, brand_name, preparation, `volume/bottle` AS volume_bottle
+    FROM medications
+    ORDER BY generic_name ASC
+")->fetchAll(PDO::FETCH_ASSOC);
+
 /* ================= SAVE ALL ================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
     try {
@@ -285,6 +291,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
             font-weight: 600;
             color: #062e6b;
         }
+
+        .med-autocomplete-wrapper { position: relative; }
+        .med-dropdown {
+        position: absolute;
+        top: calc(100% + 2px);
+        left: 0; right: 0;
+        background: #fff;
+        border: 1px solid #c8d6e8;
+        border-radius: 6px;
+        box-shadow: 0 4px 16px rgba(6,46,107,0.13);
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 9999;
+        display: none;
+        }
+        .med-dropdown.show { display: block; }
+        .med-dropdown-item {
+        padding: 8px 12px;
+        font-size: 13px;
+        cursor: pointer;
+        border-bottom: 1px solid #f0f4ff;
+        color: #222;
+        transition: background 0.1s;
+        }
+        .med-dropdown-item:last-child { border-bottom: none; }
+        .med-dropdown-item:hover, .med-dropdown-item.active {
+        background: #e8eef7;
+        color: #062e6b;
+        font-weight: 500;
+        }
+        .med-dropdown-item .match-highlight { color: #1a6fd4; font-weight: 700; }
     </style>
 </head>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -507,6 +544,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
                                         </div>
 
                                         <!-- Medications -->
+                                            <div class="card mb-4 shadow-sm">
+                                                <div class="section-header d-flex justify-content-between align-items-center">
+                                                    <span><i class="fa-solid fa-pills me-2"></i> Medications</span>
+                                                    <button type="button" class="btn btn-sm btn-light" onclick="addNewMedRow()">
+                                                        <i class="fa fa-plus me-1"></i> Add Medication
+                                                    </button>
+                                                </div>
+                                                <div class="card-body p-0">
+                                                    <table class="table table-sm mb-0" id="newMedTable">
+                                                        <thead style="background:#f0f4ff;">
+                                                            <tr>
+                                                                <th style="color:#062e6b;">Generic Name</th>
+                                                                <th style="color:#062e6b;">Brand Name</th>
+                                                                <th style="color:#062e6b;">Preparation</th>
+                                                                <th style="color:#062e6b;">Volume/Bottle</th>
+                                                                <th style="color:#062e6b; width:80px;">Qty</th>
+                                                                <th style="width:40px;"></th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody id="newMedBody"></tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
 
                                     </form>
                                 </div>
@@ -654,7 +714,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
                                     data-wt="<?= htmlspecialchars($c['weight']) ?>"
                                     data-hr="<?= htmlspecialchars($c['heart_rate']) ?>"
                                     data-temp="<?= htmlspecialchars($c['temperature']) ?>"
-                                    data-doc="<?= htmlspecialchars($c['doc_fullname']) ?>">
+                                    data-doc="<?= htmlspecialchars($c['doc_fullname']) ?>"
+                                    data-medications="<?= htmlspecialchars(json_encode(array_map(fn($m) => [
+                                        'generic_name'  => $m['pres_generic_name'],
+                                        'brand_name'    => $m['pres_brand_name'],
+                                        'preparation'   => '',
+                                        'volume_bottle' => '',
+                                        'qty'           => $m['amount'] ?? 1,
+                                    ], $c['medications']))) ?>">
                                     <i class="fa fa-pen-to-square me-1"></i> Edit
                                 </button>
                             </div>
@@ -798,8 +865,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
                                             </div>
                                         </div>
 
-                                        <div class="card mb-2 shadow-sm">
-                                            <div class="section-header"><i class="fa-solid fa-user-doctor me-2"></i> Doctor</div>
+                                        <div class="card mb-4 shadow-sm">
+                                            <div class="section-header d-flex justify-content-between align-items-center">
+                                                <span><i class="fa-solid fa-pills me-2"></i> Medications</span>
+                                                <button type="button" class="btn btn-sm btn-light" onclick="addEditMedRow()">
+                                                    <i class="fa fa-plus me-1"></i> Add Medication
+                                                </button>
+                                            </div>
+                                            <div class="card-body p-0">
+                                                <table class="table table-sm mb-0" id="editMedTable">
+                                                    <thead style="background:#f0f4ff;">
+                                                        <tr>
+                                                            <th style="color:#062e6b;">Generic Name</th>
+                                                            <th style="color:#062e6b;">Brand Name</th>
+                                                            <th style="color:#062e6b;">Preparation</th>
+                                                            <th style="color:#062e6b;">Volume/Bottle</th>
+                                                            <th style="color:#062e6b; width:80px;">Qty</th>
+                                                            <th style="width:40px;"></th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody id="editMedBody"></tbody>
+                                                </table>
+                                            </div>
+                                        </div>
                                             <div class="card-body">
                                                 <input class="form-control" id="edit_doc" readonly>
                                             </div>
@@ -824,17 +912,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
     <script>
         const AI_PREDICTION_PAYLOAD = <?= json_encode($aiPredictionsData, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>;
         const AI_API_URL = 'ai_predict.php';
+        const allMedications = <?= json_encode($allMedications, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>;
 
+        // ── AI helpers ────────────────────────────────────────────────────────
         function escapeHtml(str) {
             if (str === null || str === undefined) return '';
             return String(str)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;');
         }
-
         function setAiInsights(html) {
             const card = document.getElementById('aiInsightsCard');
             const body = document.getElementById('aiInsightsBody');
@@ -842,7 +929,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
             body.innerHTML = html;
             card.style.display = 'block';
         }
-
         function setAiError(message) {
             const card = document.getElementById('aiInsightsErrorCard');
             const body = document.getElementById('aiInsightsErrorBody');
@@ -850,69 +936,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
             body.textContent = message;
             card.style.display = 'block';
         }
-
         async function loadAiInsights() {
-            if (!AI_PREDICTION_PAYLOAD || Object.keys(AI_PREDICTION_PAYLOAD).length === 0) {
-                return;
-            }
-
+            if (!AI_PREDICTION_PAYLOAD || Object.keys(AI_PREDICTION_PAYLOAD).length === 0) return;
             try {
                 const response = await fetch(AI_API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(AI_PREDICTION_PAYLOAD)
                 });
-
                 const data = await response.json();
-                
-                // Safety check: ensure response is valid
-                if (!response.ok || !data || data.error) {
+                if (!response.ok || !data || data.error)
                     throw new Error(data?.error || data?.details || 'Unable to retrieve AI insights');
-                }
-
                 const top3 = data.top3 || [];
                 const followup = data.followup || {};
                 const history = data.history_used
                     ? `Based on ${escapeHtml(data.past_checkups)} prior completed checkup(s).`
                     : 'Based on current patient symptoms and available history.';
-
                 const top3Html = top3.length
                     ? `<ul class="mb-0 ps-3">${top3.map(i => `<li>${escapeHtml(i.disease)} — ${escapeHtml(i.confidence)}%</li>`).join('')}</ul>`
                     : '<div class="text-muted">No top predictions available.</div>';
-
-                const actionsHtml = followup.actions && followup.actions.length
-                    ? `<div class="mt-2"><strong>Action items:</strong><ul class="mb-0 ps-3">${followup.actions.map(a => `<li>${escapeHtml(a)}</li>`).join('')}</ul></div>`
-                    : '';
-
-                const testsHtml = followup.tests && followup.tests.length
-                    ? `<div class="mt-2"><strong>Suggested tests:</strong><ul class="mb-0 ps-3">${followup.tests.map(t => `<li>${escapeHtml(t)}</li>`).join('')}</ul></div>`
-                    : '';
-
+                const actionsHtml = followup.actions?.length
+                    ? `<div class="mt-2"><strong>Action items:</strong><ul class="mb-0 ps-3">${followup.actions.map(a => `<li>${escapeHtml(a)}</li>`).join('')}</ul></div>` : '';
+                const testsHtml = followup.tests?.length
+                    ? `<div class="mt-2"><strong>Suggested tests:</strong><ul class="mb-0 ps-3">${followup.tests.map(t => `<li>${escapeHtml(t)}</li>`).join('')}</ul></div>` : '';
                 setAiInsights(`
                     <div class="row gx-3 gy-3">
-                        <div class="col-md-4">
-                            <div class="p-3 bg-light rounded h-100">
-                                <strong>Predicted Diagnosis</strong>
-                                <div class="fs-4 fw-bold mt-2">${escapeHtml(data.current_diagnosis || data.disease || 'Unknown')}</div>
-                                <div class="text-muted">Confidence: ${escapeHtml(data.confidence?.toFixed?.(1) ?? data.confidence ?? 0)}%</div>
-                                ${data.supporting_evidence && data.supporting_evidence.length ? `<div class="mt-2 text-muted"><small>Evidence: ${escapeHtml(data.supporting_evidence.join(', '))}</small></div>` : ''}
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="p-3 bg-light rounded h-100">
-                                <strong>Top likely diagnoses</strong>
-                                ${top3Html}
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="p-3 bg-light rounded h-100">
-                                <strong>Follow-up recommendation</strong>
-                                <div class="mt-2">${followup.urgent ? '<span class="badge bg-danger">Urgent</span>' : '<span class="badge bg-success">Standard</span>'}</div>
-                                <div class="mt-2">Follow up in ${escapeHtml(followup.days ?? 7)} day(s).</div>
-                                ${actionsHtml}
-                                ${testsHtml}
-                            </div>
-                        </div>
+                        <div class="col-md-4"><div class="p-3 bg-light rounded h-100">
+                            <strong>Predicted Diagnosis</strong>
+                            <div class="fs-4 fw-bold mt-2">${escapeHtml(data.current_diagnosis || data.disease || 'Unknown')}</div>
+                            <div class="text-muted">Confidence: ${escapeHtml(data.confidence?.toFixed?.(1) ?? data.confidence ?? 0)}%</div>
+                            ${data.supporting_evidence?.length ? `<div class="mt-2 text-muted"><small>Evidence: ${escapeHtml(data.supporting_evidence.join(', '))}</small></div>` : ''}
+                        </div></div>
+                        <div class="col-md-4"><div class="p-3 bg-light rounded h-100">
+                            <strong>Top likely diagnoses</strong>${top3Html}
+                        </div></div>
+                        <div class="col-md-4"><div class="p-3 bg-light rounded h-100">
+                            <strong>Follow-up recommendation</strong>
+                            <div class="mt-2">${followup.urgent ? '<span class="badge bg-danger">Urgent</span>' : '<span class="badge bg-success">Standard</span>'}</div>
+                            <div class="mt-2">Follow up in ${escapeHtml(followup.days ?? 7)} day(s).</div>
+                            ${actionsHtml}${testsHtml}
+                        </div></div>
                     </div>
                     <div class="mt-3 text-muted">${history}</div>
                 `);
@@ -921,52 +984,221 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
             }
         }
 
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             loadAiInsights();
-            
-            // If page just redirected after save, show success and refresh AI predictions with new data
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.get('success') === '1') {
-                // Show success message
                 const alertDiv = document.createElement('div');
                 alertDiv.className = 'alert alert-success alert-dismissible fade show';
-                alertDiv.innerHTML = `
-                    <strong>Success!</strong> Checkup record saved. AI is analyzing with new patient data...
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                `;
+                alertDiv.innerHTML = `<strong>Success!</strong> Checkup record saved. AI is analyzing with new patient data...
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
                 const main = document.querySelector('main');
                 if (main) main.insertBefore(alertDiv, main.firstChild);
-                
-                // Wait 3 seconds for model retrain, then refresh AI predictions
-                setTimeout(function() {
-                    loadAiInsights();
-                }, 3000);
-                
-                // Clean up URL (remove success param)
+                setTimeout(() => loadAiInsights(), 3000);
                 window.history.replaceState({}, document.title, window.location.pathname + window.location.search.replace(/[?&]success=1/, ''));
             }
         });
 
-        // Populate edit modal with checkup data
+        // ── Edit modal populate ───────────────────────────────────────────────
         document.getElementById('editCheckupModal').addEventListener('show.bs.modal', function (e) {
             const btn = e.relatedTarget;
-            document.getElementById('edit_checkup_id').value       = btn.dataset.checkupId;
-            document.getElementById('edit_checkup_date').value     = btn.dataset.checkupDate;
-            document.getElementById('edit_diagnosis').value        = btn.dataset.diagnosis;
-            document.getElementById('edit_chief_complaint').value  = btn.dataset.chiefComplaint;
-            document.getElementById('edit_hpi').value              = btn.dataset.hpi;
-            document.getElementById('edit_bp').value               = btn.dataset.bp;
-            document.getElementById('edit_rr').value               = btn.dataset.rr;
-            document.getElementById('edit_wt').value               = btn.dataset.wt;
-            document.getElementById('edit_hr').value               = btn.dataset.hr;
-            document.getElementById('edit_temp').value             = btn.dataset.temp;
-            document.getElementById('edit_doc').value              = btn.dataset.doc;
+            document.getElementById('edit_checkup_id').value      = btn.dataset.checkupId;
+            document.getElementById('edit_checkup_date').value    = btn.dataset.checkupDate;
+            document.getElementById('edit_diagnosis').value       = btn.dataset.diagnosis;
+            document.getElementById('edit_chief_complaint').value = btn.dataset.chiefComplaint;
+            document.getElementById('edit_hpi').value             = btn.dataset.hpi;
+            document.getElementById('edit_bp').value              = btn.dataset.bp;
+            document.getElementById('edit_rr').value              = btn.dataset.rr;
+            document.getElementById('edit_wt').value              = btn.dataset.wt;
+            document.getElementById('edit_hr').value              = btn.dataset.hr;
+            document.getElementById('edit_temp').value            = btn.dataset.temp;
+            document.getElementById('edit_doc').value             = btn.dataset.doc;
+            // Clear and reload existing medications for this checkup
+            document.getElementById('editMedBody').innerHTML = '';
+            const meds = btn.dataset.medications ? JSON.parse(btn.dataset.medications) : [];
+            meds.forEach(m => addEditMedRow(m));
         });
 
         function confirmEditSave() {
-            if (confirm("Save changes to this checkup record?")) {
+            if (confirm("Save changes to this checkup record?"))
                 document.getElementById('editCheckupForm').submit();
+        }
+
+        // ── Medication autocomplete shared logic ──────────────────────────────
+        function highlight(text, query) {
+            const idx = text.toLowerCase().indexOf(query.toLowerCase());
+            if (idx === -1) return escapeHtml(text);
+            return escapeHtml(text.slice(0, idx))
+                + '<span class="match-highlight">' + escapeHtml(text.slice(idx, idx + query.length)) + '</span>'
+                + escapeHtml(text.slice(idx + query.length));
+        }
+
+        function attachMedAutocomplete(tr, rowId, bodyId) {
+            const genericInput = tr.querySelector('[name="med_generic[]"]');
+            const brandInput   = tr.querySelector('[name="med_brand[]"]');
+            const prepInput    = tr.querySelector('[name="med_preparation[]"]');
+            const volumeInput  = tr.querySelector('[name="med_volume[]"]');
+            const genericDropdown = genericInput.closest('.med-autocomplete-wrapper').querySelector('.med-dropdown');
+            const brandDropdown   = brandInput.closest('.med-autocomplete-wrapper').querySelector('.med-dropdown');
+
+            function fillRow(med) {
+                if (!med) return;
+                genericInput.value = med.generic_name;
+                brandInput.value   = med.brand_name;
+                prepInput.value    = med.preparation   || '';
+                volumeInput.value  = med.volume_bottle || '';
+                genericDropdown.classList.remove('show');
+                brandDropdown.classList.remove('show');
             }
+
+            // Generic input
+            genericInput.addEventListener('input', function () {
+                const q = this.value.trim();
+                brandInput.value = ''; prepInput.value = ''; volumeInput.value = '';
+                brandDropdown.classList.remove('show');
+                if (!q) { genericDropdown.classList.remove('show'); return; }
+
+                const matched = [...new Set(
+                    allMedications.filter(m => m.generic_name.toLowerCase().startsWith(q.toLowerCase())).map(m => m.generic_name)
+                )].slice(0, 10);
+                if (!matched.length) { genericDropdown.classList.remove('show'); return; }
+
+                genericDropdown.innerHTML = matched.map(g =>
+                    `<div class="med-dropdown-item" data-value="${escapeHtml(g)}">${highlight(g, q)}</div>`
+                ).join('');
+                genericDropdown.classList.add('show');
+
+                genericDropdown.querySelectorAll('.med-dropdown-item').forEach(el => {
+                    el.addEventListener('mousedown', function (e) {
+                        e.preventDefault();
+                        const sel = this.dataset.value;
+                        genericInput.value = sel;
+                        genericDropdown.classList.remove('show');
+                        const matches = allMedications.filter(m => m.generic_name === sel);
+                        if (matches.length === 1) {
+                            fillRow(matches[0]);
+                        } else {
+                            brandInput.value = ''; prepInput.value = ''; volumeInput.value = '';
+                            brandDropdown.innerHTML = matches.map(m =>
+                                `<div class="med-dropdown-item"
+                                    data-value="${escapeHtml(m.brand_name)}"
+                                    data-prep="${escapeHtml(m.preparation || '')}"
+                                    data-volume="${escapeHtml(m.volume_bottle || '')}">
+                                    ${escapeHtml(m.brand_name)}
+                                </div>`
+                            ).join('');
+                            brandDropdown.classList.add('show');
+                            brandInput.focus();
+                            brandDropdown.querySelectorAll('.med-dropdown-item').forEach(bel => {
+                                bel.addEventListener('mousedown', function (e) {
+                                    e.preventDefault();
+                                    brandInput.value  = this.dataset.value;
+                                    prepInput.value   = this.dataset.prep;
+                                    volumeInput.value = this.dataset.volume;
+                                    brandDropdown.classList.remove('show');
+                                });
+                            });
+                        }
+                    });
+                });
+            });
+            genericInput.addEventListener('blur', () => setTimeout(() => genericDropdown.classList.remove('show'), 150));
+
+            // Brand input (manual typing)
+            brandInput.addEventListener('input', function () {
+                const q = this.value.trim();
+                const lockedGeneric = genericInput.value.trim();
+                if (!q) { brandDropdown.classList.remove('show'); return; }
+                const candidates = lockedGeneric
+                    ? allMedications.filter(m => m.generic_name === lockedGeneric && m.brand_name.toLowerCase().startsWith(q.toLowerCase()))
+                    : allMedications.filter(m => m.brand_name.toLowerCase().startsWith(q.toLowerCase()));
+                const unique = [...new Map(candidates.map(m => [m.brand_name, m])).values()].slice(0, 10);
+                if (!unique.length) { brandDropdown.classList.remove('show'); return; }
+                brandDropdown.innerHTML = unique.map(m =>
+                    `<div class="med-dropdown-item"
+                        data-generic="${escapeHtml(m.generic_name)}"
+                        data-value="${escapeHtml(m.brand_name)}"
+                        data-prep="${escapeHtml(m.preparation || '')}"
+                        data-volume="${escapeHtml(m.volume_bottle || '')}">
+                        ${highlight(m.brand_name, q)}
+                        <span class="text-muted" style="font-size:11px;"> — ${escapeHtml(m.generic_name)}</span>
+                    </div>`
+                ).join('');
+                brandDropdown.classList.add('show');
+                brandDropdown.querySelectorAll('.med-dropdown-item').forEach(bel => {
+                    bel.addEventListener('mousedown', function (e) {
+                        e.preventDefault();
+                        brandInput.value  = this.dataset.value;
+                        prepInput.value   = this.dataset.prep;
+                        volumeInput.value = this.dataset.volume;
+                        if (!lockedGeneric) genericInput.value = this.dataset.generic;
+                        brandDropdown.classList.remove('show');
+                    });
+                });
+            });
+            brandInput.addEventListener('blur', () => setTimeout(() => brandDropdown.classList.remove('show'), 150));
+        }
+
+        // ── Add New Record — med rows ─────────────────────────────────────────
+        let newMedRowId = 0;
+        function addNewMedRow(prefill) {
+            newMedRowId++;
+            const id = newMedRowId;
+            const tr = document.createElement('tr');
+            tr.id = 'new-med-row-' + id;
+            tr.innerHTML = `
+                <td><div class="med-autocomplete-wrapper">
+                    <input type="text" class="form-control form-control-sm" name="med_generic[]"
+                        value="${prefill ? escapeHtml(prefill.generic_name) : ''}" placeholder="Generic..." autocomplete="off">
+                    <div class="med-dropdown"></div>
+                </div></td>
+                <td><div class="med-autocomplete-wrapper">
+                    <input type="text" class="form-control form-control-sm" name="med_brand[]"
+                        value="${prefill ? escapeHtml(prefill.brand_name) : ''}" placeholder="Brand..." autocomplete="off">
+                    <div class="med-dropdown"></div>
+                </div></td>
+                <td><input type="text" class="form-control form-control-sm" name="med_preparation[]"
+                    value="${prefill ? escapeHtml(prefill.preparation || '') : ''}" placeholder="—" readonly></td>
+                <td><input type="text" class="form-control form-control-sm" name="med_volume[]"
+                    value="${prefill ? escapeHtml(prefill.volume_bottle || '') : ''}" placeholder="—" readonly></td>
+                <td><input type="number" class="form-control form-control-sm" name="med_qty[]"
+                    value="${prefill ? escapeHtml(prefill.qty || 1) : 1}" min="1"></td>
+                <td><button type="button" class="btn btn-sm btn-link text-danger p-0"
+                    onclick="this.closest('tr').remove()"><i class="fa fa-times"></i></button></td>
+            `;
+            document.getElementById('newMedBody').appendChild(tr);
+            attachMedAutocomplete(tr, id, 'newMedBody');
+        }
+
+        // ── Edit Record — med rows ────────────────────────────────────────────
+        let editMedRowId = 0;
+        function addEditMedRow(prefill) {
+            editMedRowId++;
+            const id = editMedRowId;
+            const tr = document.createElement('tr');
+            tr.id = 'edit-med-row-' + id;
+            tr.innerHTML = `
+                <td><div class="med-autocomplete-wrapper">
+                    <input type="text" class="form-control form-control-sm" name="edit_med_generic[]"
+                        value="${prefill ? escapeHtml(prefill.generic_name) : ''}" placeholder="Generic..." autocomplete="off">
+                    <div class="med-dropdown"></div>
+                </div></td>
+                <td><div class="med-autocomplete-wrapper">
+                    <input type="text" class="form-control form-control-sm" name="edit_med_brand[]"
+                        value="${prefill ? escapeHtml(prefill.brand_name) : ''}" placeholder="Brand..." autocomplete="off">
+                    <div class="med-dropdown"></div>
+                </div></td>
+                <td><input type="text" class="form-control form-control-sm" name="edit_med_preparation[]"
+                    value="${prefill ? escapeHtml(prefill.preparation || '') : ''}" placeholder="—" readonly></td>
+                <td><input type="text" class="form-control form-control-sm" name="edit_med_volume[]"
+                    value="${prefill ? escapeHtml(prefill.volume_bottle || '') : ''}" placeholder="—" readonly></td>
+                <td><input type="number" class="form-control form-control-sm" name="edit_med_qty[]"
+                    value="${prefill ? escapeHtml(prefill.qty || 1) : 1}" min="1"></td>
+                <td><button type="button" class="btn btn-sm btn-link text-danger p-0"
+                    onclick="this.closest('tr').remove()"><i class="fa fa-times"></i></button></td>
+            `;
+            document.getElementById('editMedBody').appendChild(tr);
+            attachMedAutocomplete(tr, id, 'editMedBody');
         }
     </script>
 </body>
