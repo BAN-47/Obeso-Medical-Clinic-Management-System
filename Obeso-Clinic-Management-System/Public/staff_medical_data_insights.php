@@ -1,4 +1,5 @@
 <?php
+date_default_timezone_set('Asia/Manila');
 session_name('obeso_staff');
 session_start();
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
@@ -14,6 +15,20 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'staff') {
 /* ================= DATABASE ================= */
 require_once "../Config/database.php";
 $db = (new Database())->connect();
+
+/* ================= SETTINGS ================= */
+$today = date('Y-m-d');
+$slotsTotal = 50;
+
+function getSlotsUsed($db, $today) {
+    $stmt = $db->prepare("SELECT COUNT(*) FROM queue WHERE DATE(created_at) = ?");
+    $stmt->execute([$today]);
+    return (int)$stmt->fetchColumn();
+}
+
+$slotsUsed = getSlotsUsed($db, $today);
+$slotsLeft = max(0, $slotsTotal - $slotsUsed);
+$slotsFull = $slotsUsed >= $slotsTotal;
 
 /* ================= MOST COMMON ILLNESS THIS MONTH ================= */
 $stmt = $db->query("
@@ -122,6 +137,47 @@ foreach ($clusterQuery as $row) {
     color:#fff !important;
     font-weight:600;
 }
+
+.slots-badge {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #f0f7ff;
+    border: 2px solid #c8d6ec;
+    border-radius: 14px;
+    padding: 10px 20px;
+    min-width: 200px;
+}
+.slots-badge.slots-low {
+    background: #fff8e1;
+    border-color: #f9a825;
+}
+.slots-badge.slots-full {
+    background: #fff0f0;
+    border-color: #dc3545;
+}
+.slots-count {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: #062e6b;
+    line-height: 1.2;
+}
+.slots-badge.slots-low  .slots-count { color: #e65100; }
+.slots-badge.slots-full .slots-count { color: #dc3545; }
+
+.full-day-banner {
+    background: #fff0f0;
+    border: 2px solid #dc3545;
+    border-radius: 12px;
+    padding: 18px 22px;
+    color: #dc3545;
+    font-weight: 700;
+    font-size: 1.05rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+}
 </style>
 </head>
 
@@ -143,6 +199,24 @@ foreach ($clusterQuery as $row) {
 
 <!-- 📸 CAPTURE AREA -->
 <div id="dashboardCapture">
+
+<?php if ($slotsFull): ?>
+<div class="full-day-banner">
+    <i class="fa-solid fa-ban fa-lg"></i>
+    <span>Today's queue is full (<?= $slotsTotal ?> / <?= $slotsTotal ?> patients). 
+    No more patients can be queued today.</span>
+</div>
+<?php endif; ?>
+
+<div class="slots-badge <?= $slotsFull ? 'slots-full' : ($slotsLeft <= 10 ? 'slots-low' : '') ?>">
+    <?php if ($slotsFull): ?>
+        <i class="fa-solid fa-ban me-2"></i>
+        <span>Today's queue is full. No more patients can be added (<?= date('F j, Y') ?>).</span>
+    <?php else: ?>
+        <span>Only <strong><span id="slotsLeftDisplay"><?= $slotsLeft ?></span></strong> 
+        patient slot<?= $slotsLeft !== 1 ? 's' : '' ?> left for today (<?= date('F j, Y') ?>).</span>
+    <?php endif; ?>
+</div>
 
 <!-- MOST COMMON ILLNESS -->
 <div class="card insight-box shadow mb-4">
@@ -203,6 +277,12 @@ foreach ($clusterQuery as $row) {
 </div>
 </div>
 
+<!-- PHP passes the value to JS -->
+<script>
+    const SLOTS_FULL = <?= $slotsFull ? 'true' : 'false' ?>;
+    const SLOTS_LEFT = <?= $slotsLeft ?>;
+</script>
+
 <script>
 new Chart(document.getElementById('clusterChart'), {
     type:'doughnut',
@@ -215,6 +295,14 @@ new Chart(document.getElementById('clusterChart'), {
     },
     options:{ maintainAspectRatio:false }
 });
+
+// Called after a patient is successfully queued
+function decrementSlots() {
+    const el = document.getElementById('slotsLeftDisplay');
+    if (!el) return;
+    let current = parseInt(el.textContent) - 1;
+    el.textContent = Math.max(0, current);
+}
 </script>
 
 </body>
