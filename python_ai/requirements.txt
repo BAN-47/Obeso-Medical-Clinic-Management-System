@@ -1,0 +1,19 @@
+flask==3.0.0
+flask-cors==4.0.0
+pandas==2.1.4
+numpy==1.26.4
+scikit-learn==1.4.2
+
+
+
+
+
+
+
+
+# langchain
+
+# langchain-community
+# langchain-core
+
+# langchain-google-genai 

@@ -108,7 +108,7 @@ async function predictDisease() {
     const btn       = document.getElementById("predictBtn");
     const resultDiv = document.getElementById("predictionResult");
     const errorDiv  = document.getElementById("predictionError");
-    const apiUrl    = `https://obeso-medical-clinic-management-system-3.onrender.com/`; // Update with your Flask server URL if needed
+    const apiUrl    = 'ai_predict.php';
 
     // Reset
     resultDiv.style.display = "none";
@@ -215,8 +215,7 @@ async function predictDisease() {
         errorDiv.style.display  = "block";
         errorDiv.innerHTML = `
             ❌ <strong>Connection error:</strong> ${err.message}<br>
-            <small>Make sure the Flask AI server is running on port 8000.<br>
-            Run: <code>python app.py</code> in the <code>python_ai</code> folder.</small>`;
+            <small>Make sure the AI proxy is available and that your AI service is configured correctly.</small>`;
     } finally {
         btn.disabled  = false;
         btn.innerHTML = '<i class="fa fa-brain me-1"></i> Predict Illness';
@@ -224,15 +223,8 @@ async function predictDisease() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-    const apiUrl = `http://${window.location.hostname}:8000/`;
-
-    fetch(apiUrl)
-        .then(response => response.text())
-        .then(data => {
-            console.log("AI server ready:", data);
-            // Auto-trigger an initial prediction request on page load
-            predictDisease();
-        })
-        .catch(error => console.error("AI server fetch error on load:", error));
+    // Optionally auto-run prediction if input is already available.
+    // Do not perform a raw GET health check against the AI server.
+    // predictDisease();
 });
 </script>

@@ -92,6 +92,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
         }
 
         $db->commit();
+        
+        // Log successful save (retrain will happen manually or via cron, not here)
+        error_log("New checkup saved for patient ID: {$patient_id}");
+        
         header("Location: doctor_medical_records_management.php?patient_id={$patient_id}&success=1");
         exit();
     } catch (Exception $e) {
@@ -184,6 +188,7 @@ if (!empty($patient)) {
     if ($sourceCheckup) {
         $aiPredictionsData = [
             'patient_id' => $patient['patient_id'],
+            'diagnosis' => $sourceCheckup['diagnosis'] ?? '',
             'chief_complaint' => $sourceCheckup['chief_complaint'] ?? '',
             'history_present_illness' => $sourceCheckup['history_present_illness'] ?? '',
             'blood_pressure' => $sourceCheckup['blood_pressure'] ?? '',
@@ -682,7 +687,7 @@ if (!empty($patient)) {
     <script src="../Public/autoFormatType.js"></script>
     <script>
         const AI_PREDICTION_PAYLOAD = <?= json_encode($aiPredictionsData, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP) ?>;
-        const AI_API_URL = 'http://127.0.0.1:8000/predict';
+        const AI_API_URL = 'ai_predict.php';
 
         function escapeHtml(str) {
             if (str === null || str === undefined) return '';
@@ -723,8 +728,10 @@ if (!empty($patient)) {
                 });
 
                 const data = await response.json();
-                if (!response.ok || data.error) {
-                    throw new Error(data.error || 'Unable to retrieve AI insights.');
+                
+                // Safety check: ensure response is valid
+                if (!response.ok || !data || data.error) {
+                    throw new Error(data?.error || data?.details || 'Unable to retrieve AI insights');
                 }
 
                 const top3 = data.top3 || [];
@@ -750,8 +757,9 @@ if (!empty($patient)) {
                         <div class="col-md-4">
                             <div class="p-3 bg-light rounded h-100">
                                 <strong>Predicted Diagnosis</strong>
-                                <div class="fs-4 fw-bold mt-2">${escapeHtml(data.disease || 'Unknown')}</div>
+                                <div class="fs-4 fw-bold mt-2">${escapeHtml(data.current_diagnosis || data.disease || 'Unknown')}</div>
                                 <div class="text-muted">Confidence: ${escapeHtml(data.confidence?.toFixed?.(1) ?? data.confidence ?? 0)}%</div>
+                                ${data.supporting_evidence && data.supporting_evidence.length ? `<div class="mt-2 text-muted"><small>Evidence: ${escapeHtml(data.supporting_evidence.join(', '))}</small></div>` : ''}
                             </div>
                         </div>
                         <div class="col-md-4">
@@ -777,7 +785,31 @@ if (!empty($patient)) {
             }
         }
 
-        document.addEventListener('DOMContentLoaded', loadAiInsights);
+        document.addEventListener('DOMContentLoaded', function() {
+            loadAiInsights();
+            
+            // If page just redirected after save, show success and refresh AI predictions with new data
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('success') === '1') {
+                // Show success message
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-success alert-dismissible fade show';
+                alertDiv.innerHTML = `
+                    <strong>Success!</strong> Checkup record saved. AI is analyzing with new patient data...
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                const main = document.querySelector('main');
+                if (main) main.insertBefore(alertDiv, main.firstChild);
+                
+                // Wait 3 seconds for model retrain, then refresh AI predictions
+                setTimeout(function() {
+                    loadAiInsights();
+                }, 3000);
+                
+                // Clean up URL (remove success param)
+                window.history.replaceState({}, document.title, window.location.pathname + window.location.search.replace(/[?&]success=1/, ''));
+            }
+        });
     </script>
 </body>
 </html>

@@ -10,6 +10,19 @@ logger = logging.getLogger(__name__)
 
 CSV_PATH = os.path.join(os.path.dirname(__file__), 'disease_data.csv')
 
+
+PLACEHOLDER_PATTERNS = ['test', 'dummy', 'placeholder', 'n/a', 'na', 'dev', 'sample', 'unknown', 'zzz']
+
+
+def is_placeholder_text(s):
+    if not s:
+        return False
+    t = str(s).strip().lower()
+    for p in PLACEHOLDER_PATTERNS:
+        if p in t:
+            return True
+    return False
+
 # ── The 8 symptoms that exist in the CSV ──
 CSV_FEATURE_COLUMNS = [
     'fever', 'cough', 'headache', 'fatigue',
@@ -47,6 +60,7 @@ KEYWORDS = {
 }
 
 DIAGNOSIS_MAP = {}
+DISEASE_SYMPTOMS = {}
 
 # Will be set by train_model() — tracks which feature set the live model uses
 ACTIVE_FEATURE_COLUMNS = CSV_FEATURE_COLUMNS
@@ -63,6 +77,97 @@ def encode_diagnosis(diag):
     if diag not in DIAGNOSIS_MAP:
         DIAGNOSIS_MAP[diag] = len(DIAGNOSIS_MAP) + 1
     return DIAGNOSIS_MAP[diag]
+
+
+def load_disease_symptoms_map():
+    """
+    Build a mapping of disease -> set(symptoms) from the CSV baseline.
+    This is used for simple clinical-rule filtering: a disease is considered
+    related to the current presentation if at least one of its canonical
+    symptoms appears in the current evidence (CC/HPI/objective).
+    """
+    global DISEASE_SYMPTOMS
+    try:
+        if not os.path.exists(CSV_PATH):
+            return {}
+        df = pd.read_csv(CSV_PATH)
+        if 'disease' not in df.columns:
+            return {}
+
+        disease_map = {}
+        for _, row in df.iterrows():
+            d = row.get('disease')
+            if not d:
+                continue
+            present = set()
+            for s in CSV_FEATURE_COLUMNS:
+                try:
+                    if int(row.get(s, 0)):
+                        present.add(s)
+                except:
+                    pass
+            if d in disease_map:
+                disease_map[d] |= present
+            else:
+                disease_map[d] = set(present)
+
+        DISEASE_SYMPTOMS = disease_map
+        return disease_map
+    except Exception:
+        return {}
+
+
+def extract_evidence_symptoms(text):
+    """Return a set of symptom keys (from SYMPTOMS/fever/high_bp)
+    that appear in the provided free-text evidence."""
+    found = set()
+    if not text:
+        return found
+    t = str(text).lower()
+    for s in SYMPTOMS:
+        if text_contains_keywords(t, KEYWORDS.get(s, [])):
+            found.add(s)
+    # temperature and blood pressure are numerical and handled elsewhere
+    return found
+
+
+def disease_supported_by_evidence(disease, evidence_symptoms, evidence_vitals, clinician_diag=None):
+    """
+    Return True if `disease` is plausibly related to the provided evidence.
+    Rules:
+      - If clinician provided `clinician_diag` and it matches `disease`, treat
+        it as supported (but still ensure at least one evidence item exists if possible).
+      - Otherwise, require that disease's canonical symptom set intersects with
+        `evidence_symptoms` OR that vital sign clues match (fever/high_bp).
+    """
+    if not disease:
+        return False
+    if clinician_diag and clinician_diag.strip().lower() == str(disease).strip().lower():
+        # clinician diagnosis present -> supported
+        return True
+
+    # load mapping if not present
+    if not DISEASE_SYMPTOMS:
+        load_disease_symptoms_map()
+
+    disease_symptoms = DISEASE_SYMPTOMS.get(disease, set())
+    if disease_symptoms & evidence_symptoms:
+        return True
+
+    # check vitals hints
+    temp = float(evidence_vitals.get('temperature', 0) or 0)
+    bp   = str(evidence_vitals.get('blood_pressure', '') or '')
+    try:
+        systolic = int(bp.split('/')[0]) if '/' in bp else int(bp) if bp else 0
+    except:
+        systolic = 0
+
+    if 'fever' in disease_symptoms and temp >= 38.0:
+        return True
+    if 'high_bp' in disease_symptoms and systolic >= 140:
+        return True
+
+    return False
 
 
 # ──────────────────────────────────────────────
@@ -198,6 +303,38 @@ def load_training_data_from_db(conn):
             ), axis=1
         )
 
+    # ------------------
+    # Filter out placeholder / mock / corrupted rows
+    # ------------------
+    def valid_row(r):
+        diag = str(r.get('diagnosis', '')).strip()
+        # exclude obvious placeholders
+        if is_placeholder_text(diag):
+            return False
+        # exclude rows with no complaint and no vitals
+        cc = str(r.get('chief_complaint', '')).strip()
+        hpi = str(r.get('history_present_illness', '')).strip()
+        temp = 0
+        try:
+            temp = float(r.get('temperature') or 0)
+        except:
+            temp = 0
+        bp = str(r.get('blood_pressure') or '').strip()
+        if not diag:
+            return False
+        if not cc and not hpi and temp == 0 and bp in ('', '0', '0/0'):
+            return False
+        # exclude developer placeholders in text
+        if is_placeholder_text(cc) or is_placeholder_text(hpi):
+            return False
+        return True
+
+    before = len(df)
+    df = df[df.apply(valid_row, axis=1)].reset_index(drop=True)
+    after = len(df)
+    if after < before:
+        logger.info(f"Filtered {before-after} placeholder/invalid DB rows from training data")
+
     # Per-row historical features
     history_rows = []
     for _, row in df.iterrows():
@@ -247,6 +384,17 @@ def train_model():
                     csv_X[col] = 0
             csv_X = csv_X[db_cols]
 
+            # Downsample CSV baseline to avoid it overpowering DB patterns
+            try:
+                max_csv_rows = max(int(len(db_X) * 2), 50)
+                if len(csv_X) > max_csv_rows:
+                    csv_X = csv_X.sample(n=max_csv_rows, random_state=42).reset_index(drop=True)
+                    # adjust csv_y to same index range if possible
+                    if len(csv_y) >= max_csv_rows:
+                        csv_y = csv_y.sample(n=max_csv_rows, random_state=42).reset_index(drop=True)
+            except Exception:
+                pass
+
             X = pd.concat([csv_X, db_X[db_cols]], ignore_index=True)
             y = pd.concat([csv_y, db_y], ignore_index=True)
             ACTIVE_FEATURE_COLUMNS = db_cols
@@ -262,6 +410,25 @@ def train_model():
 
     class_counts = y.value_counts()
     min_class_count = int(class_counts.min())
+
+    # Reduce skew from extremely frequent classes by capping per-class samples
+    try:
+        cap = int(class_counts.median() * 3) if not class_counts.empty else None
+        if cap and cap > 0:
+            frames = []
+            df_all = X.copy()
+            df_all['__target__'] = y.values
+            for cls, cnt in class_counts.items():
+                cls_rows = df_all[df_all['__target__'] == cls]
+                if len(cls_rows) > cap:
+                    cls_rows = cls_rows.sample(n=cap, random_state=42)
+                frames.append(cls_rows)
+            balanced = pd.concat(frames, ignore_index=True)
+            y = balanced['__target__']
+            X = balanced.drop(columns=['__target__'])
+            logger.info(f"Applied per-class cap={cap}, resulting rows={len(X)}")
+    except Exception as e:
+        logger.warning(f"Per-class capping failed: {e}")
 
     base = RandomForestClassifier(
         n_estimators=300,
