@@ -3,7 +3,6 @@
 require_once "../config/db.php";
 require_once "../class/medications.php";
 
-
 $database = new Database();
 $db = $database->connect();
 
@@ -36,7 +35,7 @@ if (isset($_POST['add_medication'])) {
         echo "
         <script>
             alert('❌ Error adding medication.');
-            window.location='../public/inventory_dashboard.php';
+            window.location='../public/admin_medications.php';
         </script>
         ";
     }

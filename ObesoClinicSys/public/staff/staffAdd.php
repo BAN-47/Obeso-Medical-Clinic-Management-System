@@ -53,15 +53,20 @@ if (isset($_POST['add_staff'])) {
 }
 
 // CREATE ACCOUNT
+// CREATE ACCOUNT
 if (isset($_POST["create_account"])) {
     $username = $_POST["username"];
     $password = $_POST["password"];
-    $staff_id = $_POST["staff_id"];
+    $staff_id = intval($_POST["staff_id"]);
 
-    if ($user->create($username, $password, null, $staff_id, null, false)) {
-      $rows = $staff->all();
+    $result = $user->create($username, $password, $staff_id, null);
+
+    if ($result === "DUPLICATE_USERNAME") {
+        echo "<script>alert('❌ Username already exists.');</script>";
+    } elseif ($result === true) {
+        echo "<script>alert('✅ Staff account created.'); window.location='../public/staff.php';</script>";
     } else {
-        echo "<script>alert('❌ Error adding staff.'); window.location='../public/staff.php';</script>";
+        echo "<script>alert('❌ Error creating account.'); window.location='../public/staff.php';</script>";
     }
 }
 ?>

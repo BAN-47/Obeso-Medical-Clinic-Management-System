@@ -1,6 +1,13 @@
 <?php
 date_default_timezone_set('Asia/Manila');
 session_name('obeso_doctor');
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path'     => '/',
+    'secure'   => true,
+    'httponly' => true,
+    'samesite' => 'Lax'
+]);
 session_start();
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Pragma: no-cache");
@@ -27,12 +34,11 @@ if (!$doctor) {
 }
 
 /* ================= AJAX: CALL NEXT / CALL SPECIFIC ================= */
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['queue_action'])) {
     header('Content-Type: application/json; charset=utf-8');
-    session_write_close(); // IMPORTANT: prevents session lock issues
 
     try {
-        $action = $_POST['action'];
+        $action = $_POST['queue_action'];
 
         if ($action === 'call_next') {
             $db->prepare("UPDATE queue SET status = 'waiting' WHERE status = 'in-progress' AND DATE(created_at) = CURDATE()")
@@ -687,7 +693,7 @@ $counts = $countStmt->fetch(PDO::FETCH_ASSOC);
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        const SELF = window.location.pathname;
+        const SELF = '../Public/doctor_dashboard.php';
 
         /* Remove modal */
         let _removeQueueId = null;
@@ -715,7 +721,7 @@ $counts = $countStmt->fetch(PDO::FETCH_ASSOC);
         /* POST helper */
         function postAction(action, extra = {}) {
             const fd = new FormData();
-            fd.append('action', action);
+fd.append('queue_action', action);
             for (const [k, v] of Object.entries(extra)) fd.append(k, v);
             return fetch(SELF, {
                 method: 'POST',
@@ -871,7 +877,6 @@ function togglePriority(id, cur) { postAction('toggle_priority', { queue_id: id,
             setInterval(fetchQueue, 15000);
         });
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 
 </html>

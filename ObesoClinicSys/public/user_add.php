@@ -1,35 +1,41 @@
 <?php
+require_once "../config/db.php";
 require_once "../class/staff.php";
 require_once "../class/doctor.php";
+require_once "../class/user.php";
 
+$database = new Database();
+$db = $database->connect();
 $staff = new Staff($db);
 $doctor = new Doctor($db);
+$user = new User($db);
 
 $staffs = $staff->all();
 $doctors = $doctor->getAllDoctors();
 
 if (isset($_POST['add_user'])) {
     $staff_id = $_POST['staff_id'] ?: null;
-    $doc_id   = $_POST['doc_id'] ?: null;
+    $doc_id   = $_POST['doc_id']   ?: null;
 
     $check = $user->checkRoleSelection($staff_id, $doc_id);
 
     if ($check === "BOTH_SELECTED") {
-        echo "<script>alert('User can only be Staff OR Doctor, not both');</script>";
+        echo "<script>alert('❌ User can only be Staff OR Doctor, not both.');</script>";
     } elseif ($check === "NONE_SELECTED") {
-        echo "<script>alert('User must be linked to Staff or Doctor');</script>";
+        echo "<script>alert('❌ User must be linked to Staff or Doctor.');</script>";
     } else {
         $result = $user->create(
             $_POST['username'],
             $_POST['password'],
             $staff_id,
             $doc_id
+            // ← no extra false here
         );
 
         if ($result === "DUPLICATE_USERNAME") {
             echo "<script>alert('❌ Username already exists. Please choose another.');</script>";
         } elseif ($result === true) {
-            echo "<script>alert('✅ User created successfully');</script>";
+            echo "<script>alert('✅ User created successfully.');</script>";
         }
     }
 }

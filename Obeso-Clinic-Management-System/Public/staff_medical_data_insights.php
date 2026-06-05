@@ -208,15 +208,7 @@ foreach ($clusterQuery as $row) {
 </div>
 <?php endif; ?>
 
-<div class="slots-badge <?= $slotsFull ? 'slots-full' : ($slotsLeft <= 10 ? 'slots-low' : '') ?>">
-    <?php if ($slotsFull): ?>
-        <i class="fa-solid fa-ban me-2"></i>
-        <span>Today's queue is full. No more patients can be added (<?= date('F j, Y') ?>).</span>
-    <?php else: ?>
-        <span>Only <strong><span id="slotsLeftDisplay"><?= $slotsLeft ?></span></strong> 
-        patient slot<?= $slotsLeft !== 1 ? 's' : '' ?> left for today (<?= date('F j, Y') ?>).</span>
-    <?php endif; ?>
-</div>
+
 
 <!-- MOST COMMON ILLNESS -->
 <div class="card insight-box shadow mb-4">

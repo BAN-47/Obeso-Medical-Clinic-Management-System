@@ -35,12 +35,16 @@ if (isset($_POST['add_doctor'])) {
 if (isset($_POST["create_account"])) {
     $username = $_POST["username"];
     $password = $_POST["password"];
-    $doc_id = $_POST["doc_id"];
+    $doc_id   = intval($_POST["doc_id"]);
 
-    if ($user->create($username, $password,  null, null, $doc_id, false)) {
-      $rows = $doctor->getAllDoctors();
+    $result = $user->create($username, $password, null, $doc_id);
+
+    if ($result === "DUPLICATE_USERNAME") {
+        echo "<script>alert('❌ Username already exists.');</script>";
+    } elseif ($result === true) {
+        echo "<script>alert('✅ Doctor account created.'); window.location='../public/doctor_dashboard.php';</script>";
     } else {
-        echo "<script>alert('❌ Error adding patient.'); window.location='../public/doctor_dashboard.php';</script>";
+        echo "<script>alert('❌ Error creating account.'); window.location='../public/doctor_dashboard.php';</script>";
     }
 }
 ?>

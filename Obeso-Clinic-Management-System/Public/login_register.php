@@ -1,6 +1,5 @@
 <?php
 session_start();
-// remember the default session name so we can remove the default cookie after role session is created
 $defaultSessionName = session_name();
 require_once "../Config/database.php";
 
@@ -8,11 +7,11 @@ $database = new Database();
 $conn = $database->connect();
 
 /* ==============================================================  
-   🧩 REGISTER (Plain Password)
+   🧩 REGISTER
    ============================================================== */
 if (isset($_POST['register'])) {
     $username = trim($_POST['username']);
-    $password = trim($_POST['password']); // plain password (later consider hashing!)
+    $password = trim($_POST['password']);
 
     // Check if username already exists
     $stmt = $conn->prepare("SELECT user_name FROM users WHERE user_name = ?");
@@ -23,15 +22,14 @@ if (isset($_POST['register'])) {
         exit();
     }
 
-    // Determine if this email belongs to a doctor or staff
-    $role = null;
+    $role   = null;
     $roleId = null;
 
     // Check Doctor
     $check = $conn->prepare("SELECT doc_id FROM doctors WHERE doc_email = ?");
     $check->execute([$username]);
     if ($row = $check->fetch(PDO::FETCH_ASSOC)) {
-        $role = 'doctor';
+        $role   = 'doctor';
         $roleId = $row['doc_id'];
     }
 
@@ -40,22 +38,26 @@ if (isset($_POST['register'])) {
         $check = $conn->prepare("SELECT staff_id FROM staff WHERE staff_email = ?");
         $check->execute([$username]);
         if ($row = $check->fetch(PDO::FETCH_ASSOC)) {
-            $role = 'staff';
+            $role   = 'staff';
             $roleId = $row['staff_id'];
         }
     }
 
-    // If account exists in staff or doctor
-    if ($role === 'doctor') {
-        $stmt = $conn->prepare("INSERT INTO users (user_name, user_password, doc_id, user_is_superadmin) VALUES (?, ?, ?, 0)");
-        $stmt->execute([$username, $password, $roleId]);
-    } elseif ($role === 'staff') {
-        $stmt = $conn->prepare("INSERT INTO users (user_name, user_password, staff_id, user_is_superadmin) VALUES (?, ?, ?, 0)");
-        $stmt->execute([$username, $password, $roleId]);
-    } else {
+    if (!$role) {
         $_SESSION['register_error'] = 'Account not found in staff or doctor records.';
         header("Location: login.php");
         exit();
+    }
+
+    // ✅ Hash the password before saving
+    $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+
+    if ($role === 'doctor') {
+        $stmt = $conn->prepare("INSERT INTO users (user_name, user_password, doc_id, user_is_superadmin) VALUES (?, ?, ?, 0)");
+        $stmt->execute([$username, $hashedPassword, $roleId]);
+    } elseif ($role === 'staff') {
+        $stmt = $conn->prepare("INSERT INTO users (user_name, user_password, staff_id, user_is_superadmin) VALUES (?, ?, ?, 0)");
+        $stmt->execute([$username, $hashedPassword, $roleId]);
     }
 
     $_SESSION['register_success'] = ucfirst($role) . ' account successfully registered!';
@@ -64,24 +66,31 @@ if (isset($_POST['register'])) {
 }
 
 /* ==============================================================  
-   🔐 LOGIN (Plain Password)
+   🔐 LOGIN
    ============================================================== */
 if (isset($_POST['login'])) {
     $username = trim($_POST['username']);
     $password = trim($_POST['password']);
 
-    $stmt = $conn->prepare("SELECT * FROM users WHERE user_name = ?");
+    $stmt = $conn->prepare("SELECT * FROM users WHERE user_name = ? AND is_deleted = 0");
     $stmt->execute([$username]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    // Plain password check
-    if ($user && $password === $user['user_password']) {
+    // ✅ Accepts both hashed and plain text passwords
+    if ($user && (password_verify($password, $user['user_password']) || $password === $user['user_password'])) {
 
-    if ((int)$user['user_is_active'] !== 1) {
-        $_SESSION['login_error'] = "Your account has been disabled. Please contact the administrator.";
-        header("Location: /index.php");
-        exit;
-    }
+        // ✅ Auto-upgrade plain text to hashed on login
+        if ($password === $user['user_password']) {
+            $upgrade = $conn->prepare("UPDATE users SET user_password = ? WHERE user_id = ?");
+            $upgrade->execute([password_hash($password, PASSWORD_DEFAULT), $user['user_id']]);
+        }
+
+        if ((int)$user['user_is_active'] !== 1) {
+            $_SESSION['login_error'] = "Your account has been disabled. Please contact the administrator.";
+            header("Location: /index.php");
+            exit();
+        }
+
         // Detect role
         if ($user['user_is_superadmin'] == 1) {
             $role = 'superadmin';
@@ -93,24 +102,27 @@ if (isset($_POST['login'])) {
             $role = 'unknown';
         }
 
-        // Close the current (public) session and create a role-specific session
+        // Switch to role-specific session
         session_write_close();
-        $roleSessionName = ($role === 'doctor') ? 'obeso_doctor' : (($role === 'staff') ? 'obeso_staff' : session_name());
+        $roleSessionName = match($role) {
+            'doctor' => 'obeso_doctor',
+            'staff'  => 'obeso_staff',
+            default  => session_name()
+        };
         session_name($roleSessionName);
         session_start();
 
-        // Set session variables in the role-specific session
-        $_SESSION['user_id'] = $user['user_id'];
+        $_SESSION['user_id']   = $user['user_id'];
         $_SESSION['user_name'] = $user['user_name'];
-        $_SESSION['role'] = $role;
-        if ($role === 'doctor') $_SESSION['doc_id'] = $user['doc_id'];
-        if ($role === 'staff') $_SESSION['staff_id'] = $user['staff_id'];
+        $_SESSION['role']      = $role;
+        if ($role === 'doctor') $_SESSION['doc_id']   = $user['doc_id'];
+        if ($role === 'staff')  $_SESSION['staff_id'] = $user['staff_id'];
 
-        // Update last login time
+        // Update last login
         $update = $conn->prepare("UPDATE users SET user_last_login = NOW() WHERE user_id = ?");
         $update->execute([$user['user_id']]);
 
-        // Remove the default session cookie from the browser to avoid a shared default session
+        // Remove default session cookie
         if (!empty($defaultSessionName) && $defaultSessionName !== $roleSessionName) {
             setcookie($defaultSessionName, '', time() - 42000, '/');
         }
@@ -130,6 +142,7 @@ if (isset($_POST['login'])) {
                 header("Location: ./access_denied.php");
         }
         exit();
+
     } else {
         $_SESSION['login_error'] = "Incorrect username or password.";
         header("Location: /index.php");
@@ -137,4 +150,3 @@ if (isset($_POST['login'])) {
     }
 }
 ?>
-
