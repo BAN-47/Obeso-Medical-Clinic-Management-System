@@ -1,8 +1,12 @@
-flask==3.0.0
-flask-cors==4.0.0
-pandas==2.1.4
-numpy==1.26.4
-scikit-learn==1.4.2
+Flask==3.0.3
+Flask-Cors==6.0.1
+gunicorn
+pandas==2.2.2
+numpy==2.0.1
+scikit-learn==1.5.1
+mysql-connector-python==9.0.0
+
+
 
 
 
