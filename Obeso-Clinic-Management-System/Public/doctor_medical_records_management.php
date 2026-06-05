@@ -857,8 +857,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
                                             <div class="section-header"><i class="fa-solid fa-stethoscope me-2"></i> Checkup Details</div>
                                             <div class="card-body row g-3">
                                                 <div class="col-md-4">
-                                                    <label class="form-label text-muted small">Checkup Date</label>
-                                                    <input type="date" name="checkup_date" id="edit_checkup_date" class="form-control" required>
+                                                    <label class="form-label text-muted small required">Checkup Date</label>
+                                                    <input type="date" name="checkup_date" id="edit_checkup_date" class="form-control required">
                                                 </div>
                                                 <div class="col-md-8">
                                                     <label class="form-label text-muted small">Diagnosis</label>
@@ -1061,10 +1061,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_checkup'])) {
             meds.forEach(m => addEditMedRow(m));
         });
 
-        function confirmEditSave() {
-            if (confirm("Save changes to this checkup record?"))
-                document.getElementById('editCheckupForm').submit();
-        }
+     function confirmEditSave() {
+    const form = document.getElementById('editCheckupForm');
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+    if (confirm("Save changes to this checkup record?"))
+        form.submit();
+}
 
         // ── Medication autocomplete shared logic ──────────────────────────────
         function highlight(text, query) {

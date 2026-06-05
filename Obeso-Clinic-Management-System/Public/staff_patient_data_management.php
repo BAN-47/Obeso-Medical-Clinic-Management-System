@@ -110,26 +110,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['queue_old_patient']))
     exit();
 }
 
-/* ================= UPDATE PATIENT ================= */
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_patient'])) {
+/* ================= QUEUE OLD PATIENT ================= */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['queue_old_patient'])) {
     header('Content-Type: application/json; charset=utf-8');
     try {
-        $stmt = $db->prepare("
-            UPDATE patients SET
-                full_name = ?, age = ?, sex = ?, contact_number = ?,
-                civil_status = ?, religion = ?, occupation = ?,
-                contact_person = ?, contact_person_age = ?, address = ?
-            WHERE patient_id = ?
+        $patient_id = (int)$_POST['patient_id'];
+        if (!$patient_id) {
+            echo json_encode(['success' => false, 'error' => 'Invalid patient.']);
+            exit();
+        }
+
+        $slotsUsed = getSlotsUsed($db, $today);
+
+        if ($slotsUsed >= $slotsTotal) {
+            echo json_encode(['success' => false, 'error' => 'Queue is full today.']);
+            exit();
+        }
+
+        $check = $db->prepare("SELECT 1 FROM queue WHERE patient_id = ? AND DATE(created_at) = ?");
+        $check->execute([$patient_id, $today]);
+        if ($check->fetch()) {
+            echo json_encode(['success' => false, 'error' => 'This patient is already in the queue today.']);
+            exit();
+        }
+
+        $queueNumber = 'Q-' . str_pad($slotsUsed + 1, 3, '0', STR_PAD_LEFT);
+
+        $db->beginTransaction();
+
+        $checkup = $db->prepare("
+            INSERT INTO checkups (
+                patient_id, doc_id, doc_fullname, checkup_date,
+                chief_complaint, blood_pressure, respiratory_rate,
+                weight, heart_rate, temperature, status
+            ) VALUES (?, 1, 'Pending Assignment', ?, ?, ?, ?, ?, ?, ?, 'pending')
         ");
-        $stmt->execute([
-            $_POST['full_name'], $_POST['age'], $_POST['sex'],
-            $_POST['contact_number'], $_POST['civil_status'],
-            $_POST['religion'], $_POST['occupation'],
-            $_POST['contact_person'], $_POST['contact_person_age'],
-            $_POST['address'], (int)$_POST['patient_id']
+        $checkup->execute([
+            $patient_id, $today,
+            $_POST['chief_complaint']  ?? null,
+            $_POST['blood_pressure']   ?? null,
+            $_POST['respiratory_rate'] ?? null,
+            $_POST['weight']           ?? null,
+            $_POST['heart_rate']       ?? null,
+            $_POST['temperature']      ?? null
         ]);
-        echo json_encode(['success' => true]);
+
+        $queue = $db->prepare("INSERT INTO queue (patient_id, queue_number) VALUES (?, ?)");
+        $queue->execute([$patient_id, $queueNumber]);
+
+        $db->commit();
+        echo json_encode(['success' => true, 'queue_number' => $queueNumber]);
+
     } catch (Exception $e) {
+        $db->rollBack();
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
     exit();
@@ -138,8 +171,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_patient'])) {
 /* ================= SAVE NEW PATIENT ================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
     header('Content-Type: application/json; charset=utf-8');
-
     try {
+        $slotsUsed = getSlotsUsed($db, $today);
 
         if ($slotsUsed >= $slotsTotal) {
             echo json_encode(['success' => false, 'error' => 'Queue is full today.']);
@@ -154,6 +187,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
 
         if ($patient) {
             $patient_id = $patient['patient_id'];
+
+            // Existing patient — check if already queued today
+            $check = $db->prepare("SELECT 1 FROM queue WHERE patient_id = ? AND DATE(created_at) = ?");
+            $check->execute([$patient_id, $today]);
+            if ($check->fetch()) {
+                $db->rollBack();
+                echo json_encode(['success' => false, 'error' => 'This patient is already in the queue today.']);
+                exit();
+            }
         } else {
             $insert = $db->prepare("
                 INSERT INTO patients (
@@ -162,21 +204,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
                     contact_person, contact_person_age, contact_number
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
-
             $insert->execute([
                 $_POST['full_name'],
-                $_POST['address'] ?? null,
+                $_POST['address']            ?? null,
                 $_POST['birthday'],
                 $_POST['age'],
                 $_POST['sex'],
-                $_POST['civil_status'] ?? null,
-                $_POST['religion'] ?? null,
-                $_POST['occupation'] ?? null,
-                $_POST['contact_person'] ?? null,
+                $_POST['civil_status']       ?? null,
+                $_POST['religion']           ?? null,
+                $_POST['occupation']         ?? null,
+                $_POST['contact_person']     ?? null,
                 $_POST['contact_person_age'] ?? null,
                 $_POST['contact_number']
             ]);
-
             $patient_id = $db->lastInsertId();
         }
 
@@ -189,26 +229,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
                 weight, heart_rate, temperature, status
             ) VALUES (?, 1, 'Pending Assignment', ?, ?, ?, ?, ?, ?, ?, 'pending')
         ");
-
         $checkup->execute([
-            $patient_id,
-            $today,
-            $_POST['chief_complaint'] ?? null,
-            $_POST['blood_pressure'] ?? null,
+            $patient_id, $today,
+            $_POST['chief_complaint']  ?? null,
+            $_POST['blood_pressure']   ?? null,
             $_POST['respiratory_rate'] ?? null,
-            $_POST['weight'] ?? null,
-            $_POST['heart_rate'] ?? null,
-            $_POST['temperature'] ?? null
+            $_POST['weight']           ?? null,
+            $_POST['heart_rate']       ?? null,
+            $_POST['temperature']      ?? null
         ]);
 
         $queue = $db->prepare("INSERT INTO queue (patient_id, queue_number) VALUES (?, ?)");
         $queue->execute([$patient_id, $queueNumber]);
 
         $db->commit();
-
         echo json_encode([
-            'success' => true,
-            'patient_id' => $patient_id,
+            'success'      => true,
+            'patient_id'   => $patient_id,
             'queue_number' => $queueNumber
         ]);
 
@@ -216,7 +253,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all'])) {
         $db->rollBack();
         echo json_encode(['success' => false, 'error' => $e->getMessage()]);
     }
-
     exit();
 }
 ?>

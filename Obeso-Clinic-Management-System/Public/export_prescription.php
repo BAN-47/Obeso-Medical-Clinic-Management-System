@@ -38,19 +38,20 @@ $today           = !empty($checkup['checkup_date'])
 $soap_notes = htmlspecialchars($checkup['history_present_illness'] ?? '', ENT_QUOTES);
 $diagnosis  = htmlspecialchars($checkup['diagnosis']  ?? '', ENT_QUOTES);
 
-// Parse SOAP lines — split by newline and wrap each label in bold
-$soap_html = '';
-if (!empty($soap_notes)) {
-    $lines = explode("\n", $soap_notes);
-    foreach ($lines as $line) {
-        $line = trim($line);
-        if ($line === '') {
-            $soap_html .= '<div style="height:6px;"></div>';
-            continue;
-        }
-        // Bold the label prefix (HPI:, O:, A:, P:, S:, etc.)
-        $line = preg_replace('/^([A-Z]+:)/', '<strong>$1</strong>', htmlspecialchars($line, ENT_QUOTES));
-        $soap_html .= "<div style='margin-bottom:4px;'>{$line}</div>";
+$medications = $medObj->getLatestByPatient($checkup_id);
+
+$med_html = '';
+if (!empty($medications)) {
+    foreach ($medications as $m) {
+        $generic = htmlspecialchars($m['pres_generic_name'] ?? '', ENT_QUOTES);
+        $brand   = htmlspecialchars($m['pres_brand_name']   ?? '', ENT_QUOTES);
+        $amount  = htmlspecialchars($m['amount']            ?? '', ENT_QUOTES);
+
+        $med_html .= "<div style='margin-bottom:12px;'>";
+        $med_html .= "<strong style='font-size:20px;'>{$generic}</strong>";
+        if ($brand)  $med_html .= " <span style='font-size:16px;color:#333;'>({$brand})</span>";
+        if ($amount) $med_html .= " <span style='font-size:16px;'>&nbsp;x{$amount}</span>";
+        $med_html .= "</div>";
     }
 }
 
@@ -257,15 +258,10 @@ $html = <<<HTML
         <span class="rx-symbol">Rx</span>
     </div>
 
-    <!-- ══ DIAGNOSIS ══ -->
-    <div class="diag-area" style="margin-top: 20px;">
-        <span class="flbl">Diagnosis:</span>
-        <span class="fline" style="min-width:300px; text-size: 25px;">{$diagnosis}</span>
-    </div>
 
-    <!-- ══ SOAP NOTES ══ -->
+    <!-- ══ MEDICATIONS ══ -->
     <div class="soap-area">
-        {$soap_html}
+        {$med_html}
     </div>
 
     <!-- ══ SIGNATURE ══ -->
